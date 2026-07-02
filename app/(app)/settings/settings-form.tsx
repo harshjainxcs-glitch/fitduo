@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { signOut } from "@/lib/actions/auth";
+import { sendTestNotification } from "@/lib/actions/push";
+import { enablePush } from "@/lib/push/client";
 import { WEEKDAYS, resolveNotifPrefs } from "@/lib/constants";
 import type { Profile } from "@/lib/types/database.types";
 import { Button } from "@/components/ui/button";
@@ -248,6 +250,46 @@ export function SettingsForm({
           <CardTitle>Notifications</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await enablePush();
+                  toast.success("Reminders enabled on this device 🔔");
+                } catch (e) {
+                  const m = (e as Error).message;
+                  toast.error(
+                    m === "denied"
+                      ? "Notifications are blocked in browser settings."
+                      : m === "unsupported"
+                        ? "Push isn't supported on this browser."
+                        : "Couldn't enable reminders.",
+                  );
+                }
+              }}
+            >
+              Enable on this device
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={async () => {
+                const r = await sendTestNotification();
+                if (r.ok) toast.success(r.message);
+                else toast.error(r.message);
+              }}
+            >
+              Send test
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            iPhone: add FitDuo to your Home Screen first, then enable.
+          </p>
+
           {(
             [
               ["water", "Water reminders"],

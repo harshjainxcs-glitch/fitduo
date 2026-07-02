@@ -31,6 +31,12 @@ export function hourIST(now: Date = new Date()): number {
   return Number(formatInTimeZone(now, APP_TZ, "H"));
 }
 
+/** Minutes since IST midnight (0–1439). */
+export function minutesOfDayIST(now: Date = new Date()): number {
+  return Number(formatInTimeZone(now, APP_TZ, "H")) * 60 +
+    Number(formatInTimeZone(now, APP_TZ, "m"));
+}
+
 // --- pure calendar-date math (anchored at UTC noon so DST/offsets never shift the day) ---
 function toNoonUTC(date: ISODate): Date {
   return new Date(`${date}T12:00:00Z`);

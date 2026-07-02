@@ -327,6 +327,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      notification_sends: {
+        Row: {
+          id: string;
+          user_id: string;
+          category: string;
+          dedupe_key: string;
+          sent_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          category: string;
+          dedupe_key: string;
+          sent_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          category?: string;
+          dedupe_key?: string;
+          sent_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       daily_scores: {

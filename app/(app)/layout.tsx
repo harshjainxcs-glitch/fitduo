@@ -1,5 +1,6 @@
 import { BottomNav } from "@/components/bottom-nav";
 import { RealtimeSync } from "@/components/realtime-sync";
+import { PushManager } from "@/components/features/notifications/push-manager";
 import { getProfile } from "@/lib/supabase/server";
 import { formatDisplayDate, greeting } from "@/lib/utils/date";
 
@@ -23,6 +24,7 @@ export default async function AppLayout({
         </h1>
       </header>
 
+      <PushManager />
       <main className="flex-1 pb-24">{children}</main>
 
       <RealtimeSync />

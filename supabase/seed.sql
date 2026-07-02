@@ -1,0 +1,10 @@
+-- Seeding the two users is done via the Supabase Admin API, not raw SQL, because
+-- creating auth.users rows (hashed passwords, identities, confirmation) is not
+-- safe to hand-write. Run:  npm run seed   (see ../scripts/seed.mjs).
+--
+-- Defaults applied by that script per PRD.md §6:
+--   water_target_ml = 3000, bottle_size_ml = 750,
+--   weights 60/15/25, workout_days per user, notif_prefs sensible defaults.
+--
+-- Public signup stays OFF: Dashboard → Authentication → Providers → Email →
+-- disable "Allow new users to sign up".

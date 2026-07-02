@@ -24,17 +24,21 @@ const admin = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+// Display name defaults to the capitalized email local-part (e.g. harsh -> Harsh).
+const nameFromEmail = (email) => {
+  const local = String(email).split("@")[0].replace(/[._-]+/g, " ");
+  return local.charAt(0).toUpperCase() + local.slice(1);
+};
+
 const users = [
   {
     email: process.env.EMAIL_A ?? "EMAIL_A",
     password: process.env.PASSWORD_A ?? "REPLACE_ME_A",
-    display_name: "Partner A",
     workout_days: [0, 2, 4], // Mon, Wed, Fri
   },
   {
     email: process.env.EMAIL_B ?? "EMAIL_B",
     password: process.env.PASSWORD_B ?? "REPLACE_ME_B",
-    display_name: "Partner B",
     workout_days: [1, 3, 5], // Tue, Thu, Sat
   },
 ];
@@ -88,7 +92,7 @@ for (const u of users) {
 
   const { error: profileErr } = await admin.from("profiles").upsert({
     id: userId,
-    display_name: u.display_name,
+    display_name: nameFromEmail(u.email),
     water_target_ml: 3000,
     bottle_size_ml: 750,
     workout_days: u.workout_days,

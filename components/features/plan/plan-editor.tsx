@@ -214,7 +214,7 @@ export function PlanEditor({
               className={cn(
                 "flex-1 rounded-full py-1.5 transition-colors",
                 view === v
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-card text-foreground shadow-soft"
                   : "text-muted-foreground",
               )}
             >
@@ -274,7 +274,7 @@ export function PlanEditor({
           {dayItems.map((item) => (
             <li
               key={item.id}
-              className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3 shadow-sm"
+              className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3"
             >
               <div className="min-w-0">
                 <p className="truncate font-medium">{item.title}</p>

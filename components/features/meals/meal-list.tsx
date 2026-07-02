@@ -144,7 +144,7 @@ export function MealList({
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Meals</h2>
+        <h2 className="text-base font-bold">Meals</h2>
         <span className="text-sm text-muted-foreground">
           {donePlanned}/{totalPlanned} done
         </span>
@@ -164,8 +164,8 @@ export function MealList({
               <li
                 key={item.id}
                 className={cn(
-                  "flex items-center gap-3 rounded-2xl border bg-card p-3 shadow-sm transition-colors",
-                  completed && "border-primary/40 bg-primary/5",
+                  "flex items-center gap-3 rounded-2xl border bg-card p-3 transition-colors",
+                  completed && "border-primary/40 bg-primary/[0.04]",
                   skipped && "opacity-60",
                 )}
               >

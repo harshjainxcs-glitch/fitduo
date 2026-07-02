@@ -22,17 +22,17 @@ function hash(s: string): number {
 export function CoachCard() {
   const tip = TIPS[hash(todayIST()) % TIPS.length];
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-forest p-5 text-cream shadow-sm">
-      <div className="pointer-events-none absolute -right-6 -top-8 size-28 rounded-full bg-lime/20 blur-xl" />
-      <div className="relative flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-lime text-lime-foreground">
+    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-forest-2 to-forest p-5 text-cream shadow-soft">
+      <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-white/10 blur-2xl" />
+      <div className="relative flex items-start gap-3.5">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/12 text-lime ring-1 ring-white/15">
           <Sparkles className="size-5" />
         </div>
-        <div className="space-y-1">
-          <span className="inline-flex rounded-full bg-lime/20 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-lime">
+        <div className="space-y-1.5">
+          <span className="inline-flex rounded-full bg-white/12 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-cream/80">
             Daily boost
           </span>
-          <p className="text-sm font-medium leading-snug text-cream/90">{tip}</p>
+          <p className="text-[15px] font-medium leading-snug text-cream">{tip}</p>
         </div>
       </div>
     </div>

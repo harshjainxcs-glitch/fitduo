@@ -92,7 +92,7 @@ export function WorkoutLogger({
   }
 
   return (
-    <section className="space-y-3 rounded-3xl border bg-card p-4 shadow-sm">
+    <section className="space-y-3 rounded-3xl border bg-card p-4 shadow-soft">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-bold">Workout</h2>
         {scheduled > 0 ? (

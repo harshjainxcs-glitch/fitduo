@@ -107,17 +107,21 @@ export function TodayHero({
       <AchievementsWatcher userId={userId} todayTotal={d.score.total} />
       {d.score.total >= 100 ? <Confetti /> : null}
 
-      <div className="flex flex-col items-center gap-4 rounded-3xl bg-gradient-to-br from-mint-soft via-card to-coral-soft p-6 shadow-sm">
+      <div className="relative flex flex-col items-center gap-5 overflow-hidden rounded-3xl bg-card p-7 shadow-soft">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-12 left-1/2 size-44 -translate-x-1/2 rounded-full bg-primary/[0.06] blur-2xl"
+        />
         <button
           type="button"
           onClick={() => setBreakdownOpen(true)}
-          className="flex flex-col items-center"
+          className="relative flex flex-col items-center"
           aria-label="Show score breakdown"
         >
-          <span className="text-6xl font-extrabold tabular-nums text-primary">
+          <span className="text-[4rem] font-bold leading-none tracking-tight tabular-nums text-primary">
             {d.score.total}
           </span>
-          <span className="text-xs font-medium text-muted-foreground">
+          <span className="mt-2 text-xs font-medium text-muted-foreground">
             of 100 points today
           </span>
         </button>

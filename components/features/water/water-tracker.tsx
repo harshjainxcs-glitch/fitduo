@@ -123,7 +123,7 @@ export function WaterTracker({
   }
 
   return (
-    <section className="space-y-4 rounded-3xl border bg-card p-4 shadow-sm">
+    <section className="space-y-4 rounded-3xl border bg-card p-4 shadow-soft">
       <h2 className="text-base font-bold">Water</h2>
       <div className="flex items-center gap-5">
         <Ring

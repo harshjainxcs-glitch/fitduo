@@ -95,7 +95,7 @@ export function Feed({ profiles }: { profiles: Profile[] }) {
         return (
           <article
             key={`${post.kind}-${post.id}`}
-            className="overflow-hidden rounded-3xl border bg-card shadow-sm"
+            className="overflow-hidden rounded-3xl border bg-card shadow-soft"
           >
             <div className="flex items-center gap-2 px-4 py-3">
               <Avatar className="size-8">

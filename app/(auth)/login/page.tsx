@@ -23,7 +23,7 @@ export default function LoginPage() {
           <p className="text-sm text-muted-foreground">Sign in to continue.</p>
         </div>
 
-        <div className="rounded-3xl border bg-card p-6 shadow-sm">
+        <div className="rounded-3xl border bg-card p-6 shadow-soft">
           <LoginForm />
         </div>
       </div>

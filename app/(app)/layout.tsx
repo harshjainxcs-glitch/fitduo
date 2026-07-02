@@ -2,7 +2,7 @@ import { Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
 import { RealtimeSync } from "@/components/realtime-sync";
 import { PushManager } from "@/components/features/notifications/push-manager";
-import { createClient, getProfile } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import {
   formatDisplayDate,
   greeting,
@@ -17,23 +17,25 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const profile = await getProfile();
-  const firstName = profile?.display_name?.split(" ")[0];
-  const initials = (profile?.display_name ?? "FD").slice(0, 2).toUpperCase();
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // One (cached) getUser, then profile + points in parallel.
+  const user = await getCurrentUser();
+  let firstName: string | undefined;
+  let initials = "FD";
   let points = 0;
   if (user) {
-    const { data } = await supabase
-      .from("weekly_scores")
-      .select("total")
-      .eq("user_id", user.id)
-      .eq("week_start", weekStartIST(todayIST()))
-      .maybeSingle();
-    points = Math.round(Number(data?.total ?? 0));
+    const supabase = await createClient();
+    const [{ data: profile }, { data: score }] = await Promise.all([
+      supabase.from("profiles").select("display_name").eq("id", user.id).single(),
+      supabase
+        .from("weekly_scores")
+        .select("total")
+        .eq("user_id", user.id)
+        .eq("week_start", weekStartIST(todayIST()))
+        .maybeSingle(),
+    ]);
+    firstName = profile?.display_name?.split(" ")[0];
+    initials = (profile?.display_name ?? "FD").slice(0, 2).toUpperCase();
+    points = Math.round(Number(score?.total ?? 0));
   }
 
   return (

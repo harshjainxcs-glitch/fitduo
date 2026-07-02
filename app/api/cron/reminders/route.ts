@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPush, type PushPayload } from "@/lib/push/webpush";
-import { resolveNotifPrefs, MEAL_SLOT_LABEL } from "@/lib/constants";
+import { resolveNotifPrefs } from "@/lib/constants";
 import {
   dayOfWeekIST,
   hourIST,
@@ -15,7 +15,7 @@ import {
   toMinutes,
   waterReminderDue,
 } from "@/lib/reminders";
-import type { MealSlot, Profile } from "@/lib/types/database.types";
+import type { Profile } from "@/lib/types/database.types";
 
 export const runtime = "nodejs";
 // Never cache — it's a scheduled job.
@@ -124,9 +124,8 @@ export async function GET(req: Request) {
       for (const item of planned ?? []) {
         if (loggedItems.has(item.id)) continue;
         if (!item.target_time || !mealReminderDue(item.target_time, nowMin)) continue;
-        const slotLabel = MEAL_SLOT_LABEL[item.meal_slot as MealSlot] ?? "Meal";
         await fire(profile.id, "meal", `meal:${item.id}:${date}`, {
-          title: `${slotLabel} reminder`,
+          title: "Meal reminder 🍽️",
           body: `Time for ${item.title} — tap to log it.`,
           url: "/today",
           tag: `meal-${item.id}`,

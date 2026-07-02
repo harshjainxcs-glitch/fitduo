@@ -85,7 +85,7 @@ export type Database = {
           updated_at: string;
           user_id: string;
           day_of_week: number;
-          meal_slot: string;
+          meal_slot: string | null;
           title: string;
           target_time: string | null;
           note: string | null;
@@ -99,7 +99,7 @@ export type Database = {
           updated_at?: string;
           user_id: string;
           day_of_week: number;
-          meal_slot: string;
+          meal_slot?: string | null;
           title: string;
           target_time?: string | null;
           note?: string | null;
@@ -113,7 +113,7 @@ export type Database = {
           updated_at?: string;
           user_id?: string;
           day_of_week?: number;
-          meal_slot?: string;
+          meal_slot?: string | null;
           title?: string;
           target_time?: string | null;
           note?: string | null;

@@ -13,15 +13,23 @@ export default async function AppLayout({
 }) {
   const profile = await getProfile();
   const firstName = profile?.display_name?.split(" ")[0];
+  const initials = (profile?.display_name ?? "FD").slice(0, 2).toUpperCase();
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col">
-      <header className="px-4 pb-2 pt-6">
-        <p className="text-sm text-muted-foreground">{formatDisplayDate()}</p>
-        <h1 className="text-xl font-semibold tracking-tight">
-          {greeting()}
-          {firstName ? `, ${firstName}` : ""} 👋
-        </h1>
+      <header className="flex items-center justify-between px-5 pb-3 pt-7">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">
+            {formatDisplayDate()}
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {greeting()}
+            {firstName ? `, ${firstName}` : ""} 👋
+          </h1>
+        </div>
+        <div className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+          {initials}
+        </div>
       </header>
 
       <PushManager />

@@ -15,6 +15,7 @@ import type {
   WorkoutLog,
 } from "@/lib/types/database.types";
 import { Ring } from "@/components/ring";
+import { Feed } from "@/components/features/partner/feed";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export function UsView({
@@ -87,6 +88,12 @@ export function UsView({
             isCurrent={p.id === currentUserId}
           />
         ))}
+      </div>
+
+      {/* Shared moments feed */}
+      <div className="space-y-3">
+        <h2 className="text-base font-bold">Shared moments</h2>
+        <Feed profiles={profiles} />
       </div>
     </div>
   );

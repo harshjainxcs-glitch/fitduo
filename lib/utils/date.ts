@@ -91,6 +91,11 @@ export function formatDisplayDate(date: ISODate = todayIST()): string {
   return formatInTimeZone(toNoonUTC(date), APP_TZ, "EEEE, d MMM");
 }
 
+/** "2 Jul, 8:30 AM" from a timestamptz string (rendered in IST). */
+export function formatDateTime(iso: string): string {
+  return formatInTimeZone(new Date(iso), APP_TZ, "d MMM, h:mm a");
+}
+
 /** Time-of-day greeting based on the current IST hour. */
 export function greeting(now: Date = new Date()): string {
   const h = hourIST(now);

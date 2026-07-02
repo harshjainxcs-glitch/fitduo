@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Camera, Check, Flame, MoreHorizontal, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadPhoto, signedPhotoUrl } from "@/lib/storage";
-import { MEAL_SLOTS } from "@/lib/constants";
 import { formatTime } from "@/lib/utils/date";
 import type { MealLog, PlanItem } from "@/lib/types/database.types";
 import { cn } from "@/lib/utils";
@@ -61,7 +60,15 @@ export function MealList({
   });
 
   const todaysPlan = useMemo(
-    () => planItems.filter((i) => i.day_of_week === dow && i.is_active),
+    () =>
+      planItems
+        .filter((i) => i.day_of_week === dow && i.is_active)
+        .sort((a, b) => {
+          const ta = a.target_time ?? "99:99";
+          const tb = b.target_time ?? "99:99";
+          if (ta !== tb) return ta < tb ? -1 : 1;
+          return a.sort_order - b.sort_order;
+        }),
     [planItems, dow],
   );
   const logByItem = useMemo(() => {
@@ -148,89 +155,72 @@ export function MealList({
           No meals planned for today. Add some on the Plan tab.
         </p>
       ) : (
-        <div className="space-y-4">
-          {MEAL_SLOTS.map(({ slot, label }) => {
-            const slotItems = todaysPlan
-              .filter((i) => i.meal_slot === slot)
-              .sort((a, b) => a.sort_order - b.sort_order);
-            if (slotItems.length === 0) return null;
+        <ul className="space-y-2">
+          {todaysPlan.map((item) => {
+            const log = logByItem.get(item.id);
+            const completed = log?.status === "completed";
+            const skipped = log?.status === "skipped";
             return (
-              <div key={slot} className="space-y-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {label}
-                </h3>
-                <ul className="space-y-2">
-                  {slotItems.map((item) => {
-                    const log = logByItem.get(item.id);
-                    const completed = log?.status === "completed";
-                    const skipped = log?.status === "skipped";
-                    return (
-                      <li
-                        key={item.id}
-                        className={cn(
-                          "flex items-center gap-3 rounded-xl border bg-card p-3",
-                          completed && "border-primary/40 bg-primary/5",
-                          skipped && "opacity-60",
-                        )}
-                      >
-                        <button
-                          type="button"
-                          aria-label={completed ? "Mark not done" : "Mark done"}
-                          onClick={() => toggle.mutate(item)}
-                          className={cn(
-                            "flex size-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                            completed
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-muted-foreground/40",
-                          )}
-                        >
-                          {completed ? <Check className="size-4" /> : null}
-                        </button>
-                        <button
-                          type="button"
-                          className="min-w-0 flex-1 text-left"
-                          onClick={() => setDetail({ mode: "planned", item, log })}
-                        >
-                          <p
-                            className={cn(
-                              "truncate text-sm font-medium",
-                              skipped && "line-through",
-                            )}
-                          >
-                            {item.title}
-                          </p>
-                          <div className="flex gap-3 text-xs text-muted-foreground">
-                            {item.target_time ? (
-                              <span>{formatTime(item.target_time)}</span>
-                            ) : null}
-                            {log?.calories != null ? (
-                              <span className="flex items-center gap-0.5">
-                                <Flame className="size-3" />
-                                {log.calories}
-                              </span>
-                            ) : null}
-                            {log?.photo_path ? (
-                              <Camera className="size-3" />
-                            ) : null}
-                            {skipped ? <span>skipped</span> : null}
-                          </div>
-                        </button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Meal options"
-                          onClick={() => setDetail({ mode: "planned", item, log })}
-                        >
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+              <li
+                key={item.id}
+                className={cn(
+                  "flex items-center gap-3 rounded-2xl border bg-card p-3 shadow-sm transition-colors",
+                  completed && "border-primary/40 bg-primary/5",
+                  skipped && "opacity-60",
+                )}
+              >
+                <button
+                  type="button"
+                  aria-label={completed ? "Mark not done" : "Mark done"}
+                  onClick={() => toggle.mutate(item)}
+                  className={cn(
+                    "flex size-8 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                    completed
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-muted-foreground/30",
+                  )}
+                >
+                  {completed ? <Check className="size-4" /> : null}
+                </button>
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-left"
+                  onClick={() => setDetail({ mode: "planned", item, log })}
+                >
+                  <p
+                    className={cn(
+                      "truncate text-sm font-semibold",
+                      skipped && "line-through",
+                    )}
+                  >
+                    {item.title}
+                  </p>
+                  <div className="flex gap-3 text-xs text-muted-foreground">
+                    {item.target_time ? (
+                      <span>{formatTime(item.target_time)}</span>
+                    ) : null}
+                    {log?.calories != null ? (
+                      <span className="flex items-center gap-0.5">
+                        <Flame className="size-3" />
+                        {log.calories}
+                      </span>
+                    ) : null}
+                    {log?.photo_path ? <Camera className="size-3" /> : null}
+                    {skipped ? <span>skipped</span> : null}
+                  </div>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Meal options"
+                  onClick={() => setDetail({ mode: "planned", item, log })}
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
 
       {/* Ad-hoc meals (0 points, record-only) */}

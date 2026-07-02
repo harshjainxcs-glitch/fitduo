@@ -526,3 +526,12 @@ create index notification_sends_user_idx on public.notification_sends (user_id, 
 alter table public.notification_sends enable row level security;
 -- No policies on purpose: service role bypasses RLS; nobody else has access.
 
+-- ============================================================
+-- supabase/migrations/20260703100000_custom_meals.sql
+-- ============================================================
+-- Custom meal times: drop the fixed meal_slot enum so users can name their own
+-- meals freely. Each plan_item is now just {title, target_time, calories}.
+-- Scoring (daily_scores) counts plan_items regardless of slot, so this is safe.
+alter table public.plan_items drop constraint if exists plan_items_meal_slot_check;
+alter table public.plan_items alter column meal_slot drop not null;
+

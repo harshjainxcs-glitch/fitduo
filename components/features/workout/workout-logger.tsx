@@ -92,9 +92,9 @@ export function WorkoutLogger({
   }
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-3 rounded-3xl border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Workout</h2>
+        <h2 className="text-base font-bold">Workout</h2>
         {scheduled > 0 ? (
           <span className="text-sm text-muted-foreground">
             {doneScheduled} of {scheduled} days
@@ -104,8 +104,8 @@ export function WorkoutLogger({
 
       <div
         className={cn(
-          "flex items-center gap-3 rounded-xl border bg-card p-3",
-          todayDone && "border-primary/40 bg-primary/5",
+          "flex items-center gap-3 rounded-2xl bg-muted/60 p-3",
+          todayDone && "bg-primary/10",
         )}
       >
         <span

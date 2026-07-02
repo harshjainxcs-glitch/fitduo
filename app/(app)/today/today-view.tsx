@@ -1,6 +1,7 @@
 "use client";
 
 import { TodayHero } from "@/components/features/scoring/today-hero";
+import { CoachCard } from "@/components/features/motivation/coach-card";
 import { MealList } from "@/components/features/meals/meal-list";
 import { WaterTracker } from "@/components/features/water/water-tracker";
 import { WorkoutLogger } from "@/components/features/workout/workout-logger";
@@ -20,7 +21,8 @@ export function TodayView({
   const dow = dayOfWeekIST(date);
 
   return (
-    <div className="space-y-8 px-4 py-2">
+    <div className="space-y-6 px-4 py-2">
+      <CoachCard />
       <TodayHero userId={userId} profile={profile} date={date} />
       <WaterTracker
         userId={userId}

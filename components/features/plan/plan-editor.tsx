@@ -232,10 +232,10 @@ export function PlanEditor({
             type="button"
             onClick={() => setDay(d.index)}
             className={cn(
-              "rounded-2xl py-2 text-xs font-semibold transition-colors",
+              "rounded-2xl py-2 text-xs font-bold transition-colors",
               d.index === day
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-accent",
+                ? "bg-accent text-accent-foreground"
+                : "bg-muted text-muted-foreground hover:bg-accent/40",
             )}
           >
             {d.short}

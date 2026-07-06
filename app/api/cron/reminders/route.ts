@@ -216,7 +216,8 @@ export async function GET(req: Request) {
         .select("*")
         .eq("owner_id", profile.id)
         .eq("remind", true)
-        .eq("done", false);
+        .neq("status", "done")
+        .neq("status", "skipped");
       for (const t of taskRows ?? []) {
         if (t.all_day || !t.start_time) continue;
         if (!occursOn(t, date)) continue;

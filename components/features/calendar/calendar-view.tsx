@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DayTimeline, TaskRow } from "./day-timeline";
 import { TaskDialog } from "./task-dialog";
+import { TaskQuickSheet } from "./task-quick-sheet";
 
 type View = "day" | "week" | "year";
 type Partner = { id: string; display_name: string } | null;
@@ -43,6 +44,7 @@ export function CalendarView({
   const [selected, setSelected] = useState(today);
   const [whose, setWhose] = useState<"you" | "partner">("you");
   const [editingTask, setEditingTask] = useState<CalendarTask | null>(null);
+  const [quickTask, setQuickTask] = useState<CalendarTask | null>(null);
   const [newInitial, setNewInitial] = useState<{
     task_date: string;
     owner_id: string;
@@ -199,7 +201,7 @@ export function CalendarView({
           onSlotTap={(start) =>
             setNewInitial({ task_date: selected, owner_id: viewId, start_time: start })
           }
-          onTaskTap={setEditingTask}
+          onTaskTap={setQuickTask}
         />
       ) : view === "week" ? (
         <WeekAgenda
@@ -209,7 +211,7 @@ export function CalendarView({
             setSelected(d);
             setView("day");
           }}
-          onTaskTap={setEditingTask}
+          onTaskTap={setQuickTask}
         />
       ) : (
         <YearGrid
@@ -233,6 +235,24 @@ export function CalendarView({
         onClose={closeDialog}
         onSaved={onSaved}
       />
+
+      {quickTask ? (
+        <TaskQuickSheet
+          key={quickTask.id}
+          task={quickTask}
+          userId={userId}
+          meName={meName}
+          partner={partner}
+          onEdit={() => {
+            setEditingTask(quickTask);
+            setQuickTask(null);
+          }}
+          onClose={() => setQuickTask(null)}
+          onChanged={() =>
+            qc.invalidateQueries({ queryKey: ["calendar_tasks"] })
+          }
+        />
+      ) : null}
     </div>
   );
 }

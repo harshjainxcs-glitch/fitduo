@@ -38,7 +38,7 @@ export const DEFAULT_NOTIF_PREFS: Required<
   partner: true,
   weekly: true,
   tasks: true,
-  water_interval_min: 90,
+  water_interval_min: 180,
   quiet_hours: { start: "22:00", end: "07:00" },
 };
 

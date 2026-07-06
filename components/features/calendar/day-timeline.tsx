@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Check, ChevronRight, Repeat } from "lucide-react";
+import { Bell, Check, ChevronRight, Loader, Repeat, SkipForward } from "lucide-react";
 import { primaryTag, tasksOnDate, timeToMinutes } from "@/lib/calendar";
 import { formatTime } from "@/lib/utils/date";
 import type { CalendarTask } from "@/lib/types/database.types";
@@ -21,10 +21,19 @@ export function TaskRow({
   onTap: () => void;
 }) {
   const tag = primaryTag(task);
+  const settled = task.status === "done" || task.status === "skipped";
   const timeText =
     task.all_day || !task.start_time
       ? "All day"
       : `${formatTime(task.start_time)}${task.end_time ? `–${formatTime(task.end_time)}` : ""}`;
+  const badge =
+    task.status === "done"
+      ? { label: "Done", cls: "bg-primary/10 text-primary", Icon: Check }
+      : task.status === "in_progress"
+        ? { label: "Active", cls: "bg-amber-500/15 text-amber-600", Icon: Loader }
+        : task.status === "skipped"
+          ? { label: "Skipped", cls: "bg-muted text-muted-foreground", Icon: SkipForward }
+          : null;
   return (
     <button
       type="button"
@@ -32,7 +41,7 @@ export function TaskRow({
       className={cn(
         "flex w-full items-center gap-3 rounded-2xl border border-l-[5px] bg-card p-3 text-left shadow-soft",
         tag?.block ?? "border-l-primary",
-        task.done && "opacity-60",
+        settled && "opacity-60",
       )}
     >
       <span
@@ -44,7 +53,7 @@ export function TaskRow({
         <span className={cn("size-2.5 rounded-full", tag?.dot ?? "bg-primary")} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className={cn("truncate text-sm font-bold", task.done && "line-through")}>
+        <p className={cn("truncate text-sm font-bold", settled && "line-through")}>
           {task.title}
         </p>
         <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
@@ -53,9 +62,9 @@ export function TaskRow({
           {task.recurrence !== "none" ? <Repeat className="size-3" /> : null}
         </p>
       </div>
-      {task.done ? (
-        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">
-          <Check className="size-3" /> Done
+      {badge ? (
+        <span className={cn("flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold", badge.cls)}>
+          <badge.Icon className="size-3" /> {badge.label}
         </span>
       ) : null}
       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />

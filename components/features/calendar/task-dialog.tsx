@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CalendarClock, Check, Send } from "lucide-react";
+import { CalendarClock, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { notifyPartner } from "@/lib/actions/notify";
 import { RECURRENCES, TASK_TAGS } from "@/lib/calendar";
-import { addDays, formatDateTime } from "@/lib/utils/date";
-import type { CalendarTask, TaskComment } from "@/lib/types/database.types";
+import { addDays } from "@/lib/utils/date";
+import type { CalendarTask } from "@/lib/types/database.types";
+import { TaskComments } from "./task-comments";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -143,7 +143,9 @@ export function TaskDialog({
                 variant={task.done ? "default" : "outline"}
                 className="h-11 flex-1 rounded-2xl"
                 disabled={busy}
-                onClick={() => save({ done: !task.done })}
+                onClick={() =>
+                  save({ done: !task.done, status: task.done ? "todo" : "done" })
+                }
               >
                 <Check className="mr-1 size-4" />
                 {task.done ? "Done" : "Mark done"}
@@ -287,86 +289,6 @@ export function TaskDialog({
         </div>
       </SheetContent>
     </Sheet>
-  );
-}
-
-function TaskComments({
-  taskId,
-  taskTitle,
-  userId,
-  meName,
-  partner,
-}: {
-  taskId: string;
-  taskTitle: string;
-  userId: string;
-  meName: string;
-  partner: Partner;
-}) {
-  const qc = useQueryClient();
-  const [draft, setDraft] = useState("");
-
-  const { data: comments = [] } = useQuery({
-    queryKey: ["task_comments", taskId],
-    queryFn: async (): Promise<TaskComment[]> => {
-      const { data, error } = await createClient()
-        .from("task_comments")
-        .select("*")
-        .eq("task_id", taskId)
-        .order("created_at");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const nameOf = (id: string) =>
-    id === userId ? meName : (partner?.display_name.split(" ")[0] ?? "Partner");
-
-  async function send() {
-    const body = draft.trim();
-    if (!body) return;
-    setDraft("");
-    const { error } = await createClient()
-      .from("task_comments")
-      .insert({ task_id: taskId, user_id: userId, body });
-    if (error) {
-      toast.error("Couldn't send.");
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["task_comments", taskId] });
-    void notifyPartner({
-      kind: "task_comment",
-      title: `${meName} on "${taskTitle}"`,
-      body,
-      url: "/calendar",
-    });
-  }
-
-  return (
-    <Section label="Updates">
-      <div className="space-y-2">
-        {comments.map((c) => (
-          <div key={c.id} className="rounded-2xl bg-muted/50 px-3 py-2">
-            <p className="text-sm">
-              <span className="font-semibold">{nameOf(c.user_id)}</span> {c.body}
-            </p>
-            <p className="text-[10px] text-muted-foreground">{formatDateTime(c.created_at)}</p>
-          </div>
-        ))}
-        <div className="flex items-center gap-2">
-          <Input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Give an update…"
-            className="h-11 rounded-full"
-          />
-          <Button size="icon" aria-label="Send update" onClick={send}>
-            <Send className="size-4" />
-          </Button>
-        </div>
-      </div>
-    </Section>
   );
 }
 

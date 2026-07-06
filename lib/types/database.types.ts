@@ -569,6 +569,7 @@ export type Database = {
           remind: boolean;
           remind_lead_min: number;
           done: boolean;
+          status: string;
         };
         Insert: {
           id?: string;
@@ -587,6 +588,7 @@ export type Database = {
           remind?: boolean;
           remind_lead_min?: number;
           done?: boolean;
+          status?: string;
         };
         Update: {
           id?: string;
@@ -605,6 +607,7 @@ export type Database = {
           remind?: boolean;
           remind_lead_min?: number;
           done?: boolean;
+          status?: string;
         };
         Relationships: [];
       };

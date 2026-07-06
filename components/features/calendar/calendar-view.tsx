@@ -11,22 +11,17 @@ import {
   todayIST,
   weekDatesIST,
 } from "@/lib/utils/date";
-import { occursOn, primaryTag, tasksOnDate } from "@/lib/calendar";
-import { formatTime } from "@/lib/utils/date";
+import { occursOn, tasksOnDate } from "@/lib/calendar";
 import type { CalendarTask } from "@/lib/types/database.types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { DayTimeline } from "./day-timeline";
+import { DayTimeline, TaskRow } from "./day-timeline";
 import { TaskDialog } from "./task-dialog";
 
 type View = "day" | "week" | "year";
 type Partner = { id: string; display_name: string } | null;
 
 const WD = ["M", "T", "W", "T", "F", "S", "S"];
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
 const MONTHS_FULL = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -253,47 +248,34 @@ function WeekAgenda({
   const days = weekDatesIST(selected);
   const today = todayIST();
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {days.map((d) => {
         const items = tasksOnDate(tasks, d);
         return (
-          <div key={d} className="rounded-2xl border bg-card p-3">
+          <div key={d} className="space-y-2">
             <button
               type="button"
               onClick={() => onDayTap(d)}
-              className="mb-2 flex w-full items-center justify-between"
+              className="flex w-full items-center justify-between px-1"
             >
-              <span className={cn("text-sm font-bold", d === today && "text-primary")}>
+              <span className={cn("text-base font-bold", d === today && "text-primary")}>
                 {formatDisplayDate(d)}
               </span>
-              <span className="text-xs text-muted-foreground">
-                {items.length ? `${items.length} task${items.length > 1 ? "s" : ""}` : "—"}
+              <span className="text-xs font-medium text-muted-foreground">
+                {items.length ? `${items.length} task${items.length > 1 ? "s" : ""}` : "Free"}
               </span>
             </button>
             {items.length ? (
-              <ul className="space-y-1">
-                {items.map((t) => {
-                  const tag = primaryTag(t);
-                  return (
-                    <li key={t.id}>
-                      <button
-                        type="button"
-                        onClick={() => onTaskTap(t)}
-                        className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-accent/40"
-                      >
-                        <span className={cn("size-2 shrink-0 rounded-full", tag?.dot ?? "bg-primary")} />
-                        <span className="w-12 shrink-0 text-[11px] text-muted-foreground">
-                          {t.all_day || !t.start_time ? "All day" : formatTime(t.start_time)}
-                        </span>
-                        <span className={cn("truncate text-sm", t.done && "line-through opacity-60")}>
-                          {t.title}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
+              <div className="space-y-2">
+                {items.map((t) => (
+                  <TaskRow key={t.id} task={t} onTap={() => onTaskTap(t)} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed px-3 py-3 text-center text-xs text-muted-foreground">
+                Nothing planned
+              </div>
+            )}
           </div>
         );
       })}
@@ -312,8 +294,8 @@ function YearGrid({
 }) {
   const today = todayIST();
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {MONTHS.map((label, m) => {
+    <div className="space-y-6">
+      {MONTHS_FULL.map((label, m) => {
         const mm = String(m + 1).padStart(2, "0");
         const first = `${year}-${mm}-01`;
         const daysIn = new Date(year, m + 1, 0).getDate();
@@ -323,11 +305,11 @@ function YearGrid({
           cells.push(`${year}-${mm}-${String(d).padStart(2, "0")}`);
         }
         return (
-          <div key={m} className="rounded-2xl border bg-card p-2">
-            <p className="mb-1 px-1 text-xs font-bold">{label}</p>
-            <div className="grid grid-cols-7 gap-0.5">
+          <div key={m}>
+            <p className="mb-2 text-lg font-bold">{label}</p>
+            <div className="grid grid-cols-7 gap-1.5">
               {WD.map((w, i) => (
-                <span key={i} className="text-center text-[8px] text-muted-foreground">
+                <span key={i} className="pb-1 text-center text-[10px] font-medium text-muted-foreground">
                   {w}
                 </span>
               ))}
@@ -337,22 +319,20 @@ function YearGrid({
                     key={date}
                     type="button"
                     onClick={() => onDayTap(date)}
-                    className={cn(
-                      "relative aspect-square rounded-md text-[9px] leading-none",
-                      date === today ? "bg-primary font-bold text-primary-foreground" : "hover:bg-accent",
-                    )}
+                    className="flex aspect-square items-center justify-center"
                   >
-                    <span className="absolute inset-0 flex items-center justify-center">
+                    <span
+                      className={cn(
+                        "flex size-9 items-center justify-center rounded-full text-sm",
+                        date === today
+                          ? "bg-primary font-bold text-primary-foreground"
+                          : tasks.some((t) => occursOn(t, date))
+                            ? "bg-primary/12 font-semibold text-primary"
+                            : "font-medium text-foreground",
+                      )}
+                    >
                       {Number(date.slice(8))}
                     </span>
-                    {tasks.some((t) => occursOn(t, date)) ? (
-                      <span
-                        className={cn(
-                          "absolute bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full",
-                          date === today ? "bg-primary-foreground" : "bg-coral",
-                        )}
-                      />
-                    ) : null}
                   </button>
                 ) : (
                   <span key={`b-${i}`} />

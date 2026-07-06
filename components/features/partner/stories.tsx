@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Send, Trash2, X } from "lucide-react";
+import { Camera, Image as ImageIcon, Plus, Send, Trash2, Type, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadPhoto, signedPhotoUrl } from "@/lib/storage";
 import { notifyPartner } from "@/lib/actions/notify";
@@ -11,14 +11,6 @@ import { todayIST } from "@/lib/utils/date";
 import type { Profile, Story } from "@/lib/types/database.types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 
 type StoryWithUrl = Story & { url: string | null };
 type Group = { user: Profile; stories: StoryWithUrl[] };
@@ -231,9 +223,12 @@ function StoryComposer({
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [editingText, setEditingText] = useState(false);
   const [position, setPosition] = useState<string>("bottom");
   const [color, setColor] = useState(COLORS[0]);
   const [busy, setBusy] = useState(false);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   function pick(f: File | null) {
     setFile(f);
@@ -265,86 +260,134 @@ function StoryComposer({
     }
   }
 
+  const overlayPos = cn(
+    "absolute inset-x-0 px-6 text-center text-2xl font-extrabold drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]",
+    position === "top" && "top-16",
+    position === "center" && "top-1/2 -translate-y-1/2",
+    position === "bottom" && "bottom-28",
+  );
+
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="bottom" className="mx-auto max-w-md rounded-t-3xl">
-        <SheetHeader>
-          <SheetTitle>Add to your story</SheetTitle>
-        </SheetHeader>
-        <div className="space-y-3 px-4">
-          <label className="relative flex aspect-[9/13] w-full cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed bg-muted/40 text-sm text-muted-foreground">
-            {preview ? (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={preview} alt="" className="absolute inset-0 size-full object-cover" />
-                {text ? (
-                  <span
-                    className={cn(
-                      "absolute inset-x-0 px-4 text-center text-xl font-extrabold drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]",
-                      position === "top" && "top-8",
-                      position === "center" && "top-1/2 -translate-y-1/2",
-                      position === "bottom" && "bottom-10",
-                    )}
-                    style={{ color }}
-                  >
-                    {text}
-                  </span>
-                ) : null}
-              </>
-            ) : (
-              "Tap to pick a photo 📷"
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => pick(e.target.files?.[0] ?? null)}
-            />
-          </label>
+    <div className="fixed inset-0 z-50 flex flex-col bg-black">
+      <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
 
-          <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Write something…" />
-
-          <div className="flex items-center justify-between">
-            <div className="flex gap-1.5">
-              {POSITIONS.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPosition(p.id)}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 text-xs font-medium",
-                    position === p.id ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground",
-                  )}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-1.5">
-              {COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  aria-label={`Colour ${c}`}
-                  onClick={() => setColor(c)}
-                  className={cn(
-                    "size-6 rounded-full border-2",
-                    color === c ? "border-primary" : "border-border",
-                  )}
-                  style={{ backgroundColor: c }}
-                />
-              ))}
-            </div>
+      {!preview ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-6 text-white">
+          <p className="text-lg font-bold">Add to your story</p>
+          <div className="flex gap-6">
+            <button type="button" onClick={() => galleryRef.current?.click()} className="flex flex-col items-center gap-2">
+              <span className="flex size-16 items-center justify-center rounded-2xl bg-white/15">
+                <ImageIcon className="size-7" />
+              </span>
+              <span className="text-sm">Gallery</span>
+            </button>
+            <button type="button" onClick={() => cameraRef.current?.click()} className="flex flex-col items-center gap-2">
+              <span className="flex size-16 items-center justify-center rounded-2xl bg-white/15">
+                <Camera className="size-7" />
+              </span>
+              <span className="text-sm">Camera</span>
+            </button>
           </div>
+          <button type="button" onClick={onClose} className="mt-4 text-sm text-white/70">
+            Cancel
+          </button>
         </div>
-        <SheetFooter>
-          <Button onClick={post} disabled={busy} className="w-full rounded-full">
-            {busy ? "Sharing…" : "Share to story"}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+      ) : (
+        <>
+          <div className="flex items-center justify-between px-4 py-3 text-white">
+            <button
+              type="button"
+              aria-label="Back"
+              onClick={() => {
+                setFile(null);
+                setPreview(null);
+                setText("");
+                setEditingText(false);
+              }}
+            >
+              <X className="size-6" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingText((v) => !v)}
+              className="flex items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-sm font-bold"
+            >
+              <Type className="size-4" /> Text
+            </button>
+          </div>
+
+          <div className="relative flex-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview} alt="" className="absolute inset-0 size-full object-contain" />
+            {text && !editingText ? (
+              <span className={overlayPos} style={{ color }}>
+                {text}
+              </span>
+            ) : null}
+            {editingText ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 px-6">
+                <textarea
+                  autoFocus
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="Type something…"
+                  rows={3}
+                  className="w-full resize-none bg-transparent text-center text-2xl font-extrabold outline-none placeholder:text-white/50"
+                  style={{ color }}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+            {editingText ? (
+              <div className="flex items-center justify-between">
+                <div className="flex gap-1.5">
+                  {POSITIONS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setPosition(p.id)}
+                      className={cn(
+                        "rounded-full px-3 py-1.5 text-xs font-semibold",
+                        position === p.id ? "bg-white text-black" : "bg-white/15 text-white",
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    {COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        aria-label={`Colour ${c}`}
+                        onClick={() => setColor(c)}
+                        className={cn(
+                          "size-6 rounded-full border-2",
+                          color === c ? "border-white" : "border-white/40",
+                        )}
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => setEditingText(false)} className="text-sm font-bold text-white">
+                    Done
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Button onClick={post} disabled={busy} className="h-12 w-full rounded-full text-base font-semibold">
+                {busy ? "Sharing…" : "Share to story"}
+              </Button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

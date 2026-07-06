@@ -1,9 +1,6 @@
--- FitDuo — combined schema for the Supabase SQL editor.
--- Generated from supabase/migrations/*.sql (run once, in order).
+-- FitDuo — combined schema.
 
--- ============================================================
 -- supabase/migrations/20260702090000_init_schema.sql
--- ============================================================
 -- FitDuo initial schema + RLS (PRD.md §6, CLAUDE.md §3/§5).
 -- Closed two-user app: authenticated users read ALL shared rows; each user
 -- writes only their own. push_subscriptions are private per user.
@@ -317,9 +314,7 @@ create policy photos_delete_own on storage.objects
     and (storage.foldername(name))[1] = (select auth.uid())::text
   );
 
--- ============================================================
 -- supabase/migrations/20260702091000_scoring_views.sql
--- ============================================================
 -- Scoring SQL — mirrors lib/scoring/scoring.ts (PRD.md §7, CLAUDE.md §6).
 -- log_date is already an IST calendar date, so weekday = isodow-1 (0=Mon..6=Sun).
 -- Calories are never referenced here.
@@ -496,9 +491,7 @@ grant execute on function public.finalize_week(date) to authenticated;
 --       -> meals 80 + water 20 -> total = 100.
 -- ===========================================================================
 
--- ============================================================
 -- supabase/migrations/20260702092000_realtime.sql
--- ============================================================
 -- Enable Supabase Realtime on the shared log tables + weekly_results so both
 -- partners receive change events (RLS still applies to the receiver).
 alter publication supabase_realtime add table public.meal_logs;
@@ -506,9 +499,7 @@ alter publication supabase_realtime add table public.water_logs;
 alter publication supabase_realtime add table public.workout_logs;
 alter publication supabase_realtime add table public.weekly_results;
 
--- ============================================================
 -- supabase/migrations/20260703090000_notifications.sql
--- ============================================================
 -- Dedupe ledger for the reminder scheduler (Prompt 1.5.3). Only the cron job
 -- (service role) reads/writes this — RLS is enabled with no policies so no
 -- authenticated user can touch it.
@@ -526,18 +517,14 @@ create index notification_sends_user_idx on public.notification_sends (user_id, 
 alter table public.notification_sends enable row level security;
 -- No policies on purpose: service role bypasses RLS; nobody else has access.
 
--- ============================================================
 -- supabase/migrations/20260703100000_custom_meals.sql
--- ============================================================
 -- Custom meal times: drop the fixed meal_slot enum so users can name their own
 -- meals freely. Each plan_item is now just {title, target_time, calories}.
 -- Scoring (daily_scores) counts plan_items regardless of slot, so this is safe.
 alter table public.plan_items drop constraint if exists plan_items_meal_slot_check;
 alter table public.plan_items alter column meal_slot drop not null;
 
--- ============================================================
 -- supabase/migrations/20260703110000_calendar.sql
--- ============================================================
 -- Calendar / daily timetable. Each partner has their own calendar (owner_id);
 -- both can see each other's and add tasks to each other's (created_by).
 create table public.calendar_tasks (
@@ -586,9 +573,7 @@ create policy calendar_tasks_delete on public.calendar_tasks
 
 alter publication supabase_realtime add table public.calendar_tasks;
 
--- ============================================================
 -- supabase/migrations/20260703120000_feed_prize.sql
--- ============================================================
 -- Private-Instagram feed: standalone photo posts + persistent likes + comments.
 create table public.posts (
   id uuid primary key default gen_random_uuid(),
@@ -645,9 +630,7 @@ alter publication supabase_realtime add table public.posts;
 alter publication supabase_realtime add table public.post_likes;
 alter publication supabase_realtime add table public.post_comments;
 
--- ============================================================
 -- supabase/migrations/20260703130000_meal_groups.sql
--- ============================================================
 -- Diet plan v2: meals become GROUPS (Breakfast, Lunch, …) that apply to every
 -- day; plan_items become the food ITEMS within a group on a specific day.
 create table public.meal_groups (
@@ -775,4 +758,29 @@ select
   round(pts.workout_points, 4) as workout_points,
   least(100, round(pts.meal_points + pts.water_points + pts.workout_points))::int as total
 from pts;
+
+-- supabase/migrations/20260703140000_stories.sql
+-- Ephemeral stories (Instagram-style): a photo + optional text overlay, shown
+-- for 24h then filtered out. Both partners can post and view each other's.
+create table public.stories (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  image_path text not null,
+  text text,
+  text_color text,
+  text_position text not null default 'bottom'
+    check (text_position in ('top', 'center', 'bottom'))
+);
+create index stories_created_idx on public.stories (created_at desc);
+
+alter table public.stories enable row level security;
+create policy stories_select_all on public.stories
+  for select to authenticated using (true);
+create policy stories_insert_own on public.stories
+  for insert to authenticated with check (user_id = (select auth.uid()));
+create policy stories_delete_own on public.stories
+  for delete to authenticated using (user_id = (select auth.uid()));
+
+alter publication supabase_realtime add table public.stories;
 

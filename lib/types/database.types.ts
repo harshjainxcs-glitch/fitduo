@@ -391,6 +391,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      stories: {
+        Row: {
+          id: string;
+          created_at: string;
+          user_id: string;
+          image_path: string;
+          text: string | null;
+          text_color: string | null;
+          text_position: string;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          user_id: string;
+          image_path: string;
+          text?: string | null;
+          text_color?: string | null;
+          text_position?: string;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          user_id?: string;
+          image_path?: string;
+          text?: string | null;
+          text_color?: string | null;
+          text_position?: string;
+        };
+        Relationships: [];
+      };
       posts: {
         Row: {
           id: string;
@@ -570,6 +600,7 @@ export type PushSubscriptionRow = Tables<"push_subscriptions">;
 export type WeeklyResult = Tables<"weekly_results">;
 export type Achievement = Tables<"achievements">;
 export type CalendarTask = Tables<"calendar_tasks">;
+export type Story = Tables<"stories">;
 export type Post = Tables<"posts">;
 export type PostLike = Tables<"post_likes">;
 export type PostComment = Tables<"post_comments">;

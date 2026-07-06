@@ -1,0 +1,437 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Plus, Trash2, X } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { uploadPhoto, signedPhotoUrl } from "@/lib/storage";
+import { todayIST } from "@/lib/utils/date";
+import type { Profile, Story } from "@/lib/types/database.types";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+
+type StoryWithUrl = Story & { url: string | null };
+type Group = { user: Profile; stories: StoryWithUrl[] };
+
+const DURATION = 5000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const POSITIONS = [
+  { id: "top", label: "Top" },
+  { id: "center", label: "Center" },
+  { id: "bottom", label: "Bottom" },
+] as const;
+const COLORS = ["#ffffff", "#111111", "#fbbf24", "#fb7185"];
+
+const firstName = (p: Profile) => p.display_name.split(" ")[0];
+const initials = (p: Profile) => p.display_name.slice(0, 2).toUpperCase();
+
+export function Stories({
+  profiles,
+  currentUserId,
+}: {
+  profiles: Profile[];
+  currentUserId: string;
+}) {
+  const qc = useQueryClient();
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [viewerStart, setViewerStart] = useState<number | null>(null);
+
+  const { data: stories = [] } = useQuery({
+    queryKey: ["stories"],
+    refetchInterval: 60_000,
+    queryFn: async (): Promise<StoryWithUrl[]> => {
+      const since = new Date(Date.now() - DAY_MS).toISOString();
+      const { data, error } = await createClient()
+        .from("stories")
+        .select("*")
+        .gte("created_at", since)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return Promise.all(
+        (data ?? []).map(async (s) => ({ ...s, url: await signedPhotoUrl(s.image_path) })),
+      );
+    },
+  });
+
+  const ordered = [...profiles].sort((a, b) =>
+    a.id === currentUserId ? -1 : b.id === currentUserId ? 1 : 0,
+  );
+  const groups: Group[] = ordered.map((user) => ({
+    user,
+    stories: stories.filter((s) => s.user_id === user.id),
+  }));
+  const activeGroups = groups.filter((g) => g.stories.length > 0);
+  const me = ordered.find((p) => p.id === currentUserId);
+  const myGroup = groups.find((g) => g.user.id === currentUserId);
+  const myActiveIndex = activeGroups.findIndex((g) => g.user.id === currentUserId);
+
+  return (
+    <div>
+      <div className="flex gap-4 overflow-x-auto pb-1">
+        {/* Your story */}
+        {me ? (
+          <StoryCircle
+            label="Your story"
+            fallback={initials(me)}
+            imageUrl={myGroup?.stories[0]?.url ?? null}
+            hasStory={(myGroup?.stories.length ?? 0) > 0}
+            showAdd
+            onOpen={() =>
+              (myGroup?.stories.length ?? 0) > 0
+                ? setViewerStart(myActiveIndex)
+                : setComposerOpen(true)
+            }
+            onAdd={() => setComposerOpen(true)}
+          />
+        ) : null}
+
+        {/* Partner(s) with active stories */}
+        {activeGroups
+          .filter((g) => g.user.id !== currentUserId)
+          .map((g) => (
+            <StoryCircle
+              key={g.user.id}
+              label={firstName(g.user)}
+              fallback={initials(g.user)}
+              imageUrl={g.stories[0].url}
+              hasStory
+              onOpen={() => setViewerStart(activeGroups.indexOf(g))}
+            />
+          ))}
+      </div>
+
+      {composerOpen ? (
+        <StoryComposer
+          userId={currentUserId}
+          onClose={() => setComposerOpen(false)}
+          onPosted={() => {
+            setComposerOpen(false);
+            qc.invalidateQueries({ queryKey: ["stories"] });
+          }}
+        />
+      ) : null}
+
+      {viewerStart !== null && activeGroups.length > 0 ? (
+        <StoryViewer
+          key={viewerStart}
+          groups={activeGroups}
+          startGroupIndex={viewerStart}
+          currentUserId={currentUserId}
+          onClose={() => setViewerStart(null)}
+          onChanged={() => qc.invalidateQueries({ queryKey: ["stories"] })}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function StoryCircle({
+  label,
+  fallback,
+  imageUrl,
+  hasStory,
+  showAdd,
+  onOpen,
+  onAdd,
+}: {
+  label: string;
+  fallback: string;
+  imageUrl: string | null;
+  hasStory: boolean;
+  showAdd?: boolean;
+  onOpen: () => void;
+  onAdd?: () => void;
+}) {
+  return (
+    <div className="relative flex w-16 shrink-0 flex-col items-center gap-1">
+      <button type="button" onClick={onOpen} aria-label={label}>
+        <span
+          className={cn(
+            "block rounded-full p-[2.5px]",
+            hasStory
+              ? "bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-500"
+              : "bg-muted",
+          )}
+        >
+          <span className="block rounded-full border-2 border-background">
+            {imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageUrl} alt="" className="size-14 rounded-full object-cover" />
+            ) : (
+              <span className="flex size-14 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+                {fallback}
+              </span>
+            )}
+          </span>
+        </span>
+      </button>
+      {showAdd ? (
+        <button
+          type="button"
+          onClick={onAdd}
+          aria-label="Add to your story"
+          className="absolute right-1 top-11 flex size-5 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground"
+        >
+          <Plus className="size-3" />
+        </button>
+      ) : null}
+      <span className="max-w-[64px] truncate text-[11px] text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function StoryComposer({
+  userId,
+  onClose,
+  onPosted,
+}: {
+  userId: string;
+  onClose: () => void;
+  onPosted: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const [position, setPosition] = useState<string>("bottom");
+  const [color, setColor] = useState(COLORS[0]);
+  const [busy, setBusy] = useState(false);
+
+  function pick(f: File | null) {
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : null);
+  }
+
+  async function post() {
+    if (!file) {
+      toast.error("Pick a photo first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const path = await uploadPhoto(userId, todayIST(), file);
+      const { error } = await createClient().from("stories").insert({
+        user_id: userId,
+        image_path: path,
+        text: text.trim() || null,
+        text_color: color,
+        text_position: position,
+      });
+      if (error) throw error;
+      toast.success("Story added ✨");
+      onPosted();
+    } catch {
+      toast.error("Couldn't add story.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="bottom" className="mx-auto max-w-md rounded-t-3xl">
+        <SheetHeader>
+          <SheetTitle>Add to your story</SheetTitle>
+        </SheetHeader>
+        <div className="space-y-3 px-4">
+          <label className="relative flex aspect-[9/13] w-full cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed bg-muted/40 text-sm text-muted-foreground">
+            {preview ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={preview} alt="" className="absolute inset-0 size-full object-cover" />
+                {text ? (
+                  <span
+                    className={cn(
+                      "absolute inset-x-0 px-4 text-center text-xl font-extrabold drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]",
+                      position === "top" && "top-8",
+                      position === "center" && "top-1/2 -translate-y-1/2",
+                      position === "bottom" && "bottom-10",
+                    )}
+                    style={{ color }}
+                  >
+                    {text}
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              "Tap to pick a photo 📷"
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => pick(e.target.files?.[0] ?? null)}
+            />
+          </label>
+
+          <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Write something…" />
+
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1.5">
+              {POSITIONS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPosition(p.id)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-xs font-medium",
+                    position === p.id ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground",
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1.5">
+              {COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={`Colour ${c}`}
+                  onClick={() => setColor(c)}
+                  className={cn(
+                    "size-6 rounded-full border-2",
+                    color === c ? "border-primary" : "border-border",
+                  )}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <SheetFooter>
+          <Button onClick={post} disabled={busy} className="w-full rounded-full">
+            {busy ? "Sharing…" : "Share to story"}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function StoryViewer({
+  groups,
+  startGroupIndex,
+  currentUserId,
+  onClose,
+  onChanged,
+}: {
+  groups: Group[];
+  startGroupIndex: number;
+  currentUserId: string;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const items = groups.flatMap((g) =>
+    g.stories.map((s) => ({ group: g, story: s })),
+  );
+  const startPos = groups
+    .slice(0, startGroupIndex)
+    .reduce((n, g) => n + g.stories.length, 0);
+  const [pos, setPos] = useState(startPos);
+
+  const current = items[Math.min(pos, items.length - 1)];
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      if (pos < items.length - 1) setPos((p) => p + 1);
+      else onClose();
+    }, DURATION);
+    return () => clearTimeout(id);
+  }, [pos, items.length, onClose]);
+
+  if (!current) return null;
+  const { group, story } = current;
+  const groupStart = groups
+    .slice(0, groups.indexOf(group))
+    .reduce((n, g) => n + g.stories.length, 0);
+  const localIndex = pos - groupStart;
+
+  async function del() {
+    await createClient().from("stories").delete().eq("id", story.id);
+    onChanged();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-black">
+      {/* Progress bars for this user's stories */}
+      <div className="flex gap-1 px-3 pt-3">
+        {group.stories.map((s, i) => (
+          <div key={s.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/30">
+            <div
+              className="h-full origin-left bg-white"
+              style={
+                i < localIndex
+                  ? { transform: "scaleX(1)" }
+                  : i === localIndex
+                    ? { animation: `story-progress ${DURATION}ms linear forwards` }
+                    : { transform: "scaleX(0)" }
+              }
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3 text-white">
+        <span className="flex size-8 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+          {initials(group.user)}
+        </span>
+        <span className="flex-1 text-sm font-semibold">{firstName(group.user)}</span>
+        {group.user.id === currentUserId ? (
+          <button type="button" aria-label="Delete story" onClick={del}>
+            <Trash2 className="size-5" />
+          </button>
+        ) : null}
+        <button type="button" aria-label="Close" onClick={onClose}>
+          <X className="size-6" />
+        </button>
+      </div>
+
+      {/* Image + text */}
+      <div className="relative flex-1">
+        {story.url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={story.url} alt="" className="absolute inset-0 size-full object-contain" />
+        ) : null}
+        {story.text ? (
+          <span
+            className={cn(
+              "absolute inset-x-0 px-6 text-center text-2xl font-extrabold drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]",
+              story.text_position === "top" && "top-16",
+              story.text_position === "center" && "top-1/2 -translate-y-1/2",
+              story.text_position === "bottom" && "bottom-24",
+            )}
+            style={{ color: story.text_color ?? "#ffffff" }}
+          >
+            {story.text}
+          </span>
+        ) : null}
+
+        {/* Tap zones */}
+        <button
+          type="button"
+          aria-label="Previous"
+          className="absolute inset-y-0 left-0 w-1/3"
+          onClick={() => setPos((p) => Math.max(0, p - 1))}
+        />
+        <button
+          type="button"
+          aria-label="Next"
+          className="absolute inset-y-0 right-0 w-2/3"
+          onClick={() => (pos < items.length - 1 ? setPos((p) => p + 1) : onClose())}
+        />
+      </div>
+    </div>
+  );
+}

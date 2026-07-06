@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Stories } from "@/components/features/partner/stories";
 import {
   Sheet,
   SheetContent,
@@ -163,6 +164,9 @@ export function Feed({
 
   return (
     <div className="space-y-4">
+      {/* Stories */}
+      <Stories profiles={profiles} currentUserId={currentUserId} />
+
       {/* Header + week nav */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">

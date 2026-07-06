@@ -3,13 +3,13 @@ import type { CalendarTask } from "@/lib/types/database.types";
 
 // Task tags with colors (literal Tailwind classes so the scanner keeps them).
 export const TASK_TAGS = [
-  { id: "urgent", label: "Urgent", dot: "bg-red-500", chip: "bg-red-500/10 text-red-600", block: "border-l-red-500" },
-  { id: "important", label: "Important", dot: "bg-amber-500", chip: "bg-amber-500/10 text-amber-600", block: "border-l-amber-500" },
-  { id: "study", label: "Study", dot: "bg-blue-500", chip: "bg-blue-500/10 text-blue-600", block: "border-l-blue-500" },
-  { id: "work", label: "Work", dot: "bg-violet-500", chip: "bg-violet-500/10 text-violet-600", block: "border-l-violet-500" },
-  { id: "health", label: "Health", dot: "bg-teal-500", chip: "bg-teal-500/10 text-teal-600", block: "border-l-teal-500" },
-  { id: "personal", label: "Personal", dot: "bg-pink-500", chip: "bg-pink-500/10 text-pink-600", block: "border-l-pink-500" },
-  { id: "break", label: "Break", dot: "bg-slate-400", chip: "bg-slate-400/10 text-slate-600", block: "border-l-slate-400" },
+  { id: "urgent", label: "Urgent", dot: "bg-red-500", chip: "bg-red-500/10 text-red-600", block: "border-l-red-500", tint: "bg-red-500/[0.07]" },
+  { id: "important", label: "Important", dot: "bg-amber-500", chip: "bg-amber-500/10 text-amber-600", block: "border-l-amber-500", tint: "bg-amber-500/[0.07]" },
+  { id: "study", label: "Study", dot: "bg-blue-500", chip: "bg-blue-500/10 text-blue-600", block: "border-l-blue-500", tint: "bg-blue-500/[0.07]" },
+  { id: "work", label: "Work", dot: "bg-violet-500", chip: "bg-violet-500/10 text-violet-600", block: "border-l-violet-500", tint: "bg-violet-500/[0.07]" },
+  { id: "health", label: "Health", dot: "bg-teal-500", chip: "bg-teal-500/10 text-teal-600", block: "border-l-teal-500", tint: "bg-teal-500/[0.07]" },
+  { id: "personal", label: "Personal", dot: "bg-pink-500", chip: "bg-pink-500/10 text-pink-600", block: "border-l-pink-500", tint: "bg-pink-500/[0.07]" },
+  { id: "break", label: "Break", dot: "bg-slate-400", chip: "bg-slate-400/10 text-slate-600", block: "border-l-slate-400", tint: "bg-slate-400/[0.07]" },
 ] as const;
 
 export const TAG_MAP: Record<string, (typeof TASK_TAGS)[number]> =
@@ -60,4 +60,4 @@ export const primaryTag = (task: CalendarTask) =>
 
 // Day-timeline geometry.
 export const DAY_HOURS = Array.from({ length: 24 }, (_, i) => i);
-export const HOUR_HEIGHT = 56; // px
+export const HOUR_HEIGHT = 68; // px

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -26,6 +26,10 @@ const WD = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+const MONTHS_FULL = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
 export function CalendarView({
@@ -77,17 +81,34 @@ export function CalendarView({
     else setSelected((d) => `${Number(d.slice(0, 4)) + dir}-01-01`);
   }
 
-  const heading = useMemo(() => {
-    if (view === "day") return formatDisplayDate(selected);
-    if (view === "week") {
-      const wd = weekDatesIST(selected);
-      return `${formatDisplayDate(wd[0]).replace(/^\w+, /, "")} – ${formatDisplayDate(wd[6]).replace(/^\w+, /, "")}`;
-    }
-    return selected.slice(0, 4);
-  }, [view, selected]);
+  const monthYear = `${MONTHS_FULL[Number(selected.slice(5, 7)) - 1]} ${selected.slice(0, 4)}`;
 
   return (
     <div className="space-y-4 px-4 py-2">
+      {/* Month + Today + Add */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold tracking-tight">{monthYear}</h2>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSelected(today)}
+            className="rounded-full bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground"
+          >
+            Today
+          </button>
+          <Button
+            size="icon"
+            className="size-11"
+            aria-label="Add task"
+            onClick={() =>
+              setNewInitial({ task_date: view === "year" ? today : selected, owner_id: viewId })
+            }
+          >
+            <Plus className="size-5" />
+          </Button>
+        </div>
+      </div>
+
       {/* Whose calendar */}
       {partner ? (
         <div className="flex rounded-full bg-muted p-1 text-sm font-semibold">
@@ -97,7 +118,7 @@ export function CalendarView({
               type="button"
               onClick={() => setWhose(v)}
               className={cn(
-                "flex-1 rounded-full py-1.5 transition-colors",
+                "flex-1 rounded-full py-2 transition-colors",
                 whose === v ? "bg-card text-foreground shadow-soft" : "text-muted-foreground",
               )}
             >
@@ -115,7 +136,7 @@ export function CalendarView({
             type="button"
             onClick={() => setView(v)}
             className={cn(
-              "flex-1 rounded-full py-1.5 capitalize transition-colors",
+              "flex-1 rounded-full py-2 capitalize transition-colors",
               view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground",
             )}
           >
@@ -124,34 +145,54 @@ export function CalendarView({
         ))}
       </div>
 
-      {/* Nav row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" aria-label="Previous" onClick={() => shift(-1)}>
+      {/* Day strip (day & week) or year nav */}
+      {view === "year" ? (
+        <div className="flex items-center justify-center gap-6">
+          <Button variant="ghost" size="icon" aria-label="Previous year" onClick={() => shift(-1)}>
             <ChevronLeft className="size-5" />
           </Button>
-          <button
-            type="button"
-            onClick={() => setSelected(today)}
-            className="rounded-full bg-accent px-3 py-1 text-xs font-bold text-accent-foreground"
-          >
-            Today
-          </button>
-          <Button variant="ghost" size="icon" aria-label="Next" onClick={() => shift(1)}>
+          <span className="text-lg font-bold">{selected.slice(0, 4)}</span>
+          <Button variant="ghost" size="icon" aria-label="Next year" onClick={() => shift(1)}>
             <ChevronRight className="size-5" />
           </Button>
         </div>
-        <p className="text-sm font-bold">{heading}</p>
-        <Button
-          size="icon"
-          aria-label="Add task"
-          onClick={() =>
-            setNewInitial({ task_date: view === "year" ? today : selected, owner_id: viewId })
-          }
-        >
-          <Plus className="size-5" />
-        </Button>
-      </div>
+      ) : (
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon" aria-label="Previous week" onClick={() => setSelected((w) => addDays(w, -7))}>
+            <ChevronLeft className="size-5" />
+          </Button>
+          <div className="flex flex-1 gap-1">
+            {weekDatesIST(selected).map((d) => {
+              const active = d === selected;
+              const isToday = d === today;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => {
+                    setSelected(d);
+                    if (view === "week") setView("day");
+                  }}
+                  className={cn(
+                    "flex flex-1 flex-col items-center gap-1 rounded-2xl py-2 transition-colors",
+                    active ? "bg-primary text-primary-foreground" : "hover:bg-accent/40",
+                  )}
+                >
+                  <span className={cn("text-[10px] font-semibold", active ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                    {WD[dayOfWeekIST(d)]}
+                  </span>
+                  <span className={cn("text-base font-bold tabular-nums", isToday && !active && "text-primary")}>
+                    {Number(d.slice(8))}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <Button variant="ghost" size="icon" aria-label="Next week" onClick={() => setSelected((w) => addDays(w, 7))}>
+            <ChevronRight className="size-5" />
+          </Button>
+        </div>
+      )}
 
       {/* Views */}
       {view === "day" ? (

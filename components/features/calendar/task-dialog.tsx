@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { RECURRENCES, TASK_TAGS } from "@/lib/calendar";
 import type { CalendarTask } from "@/lib/types/database.types";
@@ -11,12 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 type Initial = {
   task_date: string;
@@ -104,81 +102,75 @@ export function TaskDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[88vh] max-w-sm overflow-y-auto rounded-3xl">
-        <DialogHeader>
-          <DialogTitle>{task ? "Edit task" : "New task"}</DialogTitle>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent
+        side="bottom"
+        className="mx-auto flex max-h-[92vh] max-w-md flex-col gap-0 rounded-t-3xl p-0"
+      >
+        <SheetHeader className="px-5 pb-2 pt-5">
+          <SheetTitle className="text-xl font-bold">
+            {task ? "Edit task" : "New task"}
+          </SheetTitle>
+        </SheetHeader>
 
-        <div className="space-y-3.5">
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-3">
           <Input
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Physics class"
+            placeholder="What's the plan?"
+            className="h-12 rounded-2xl border-0 bg-muted/60 px-4 text-base font-medium"
           />
 
           {partner ? (
-            <Field label="Calendar">
-              <div className="flex rounded-full bg-muted p-1 text-sm font-semibold">
-                {[
+            <Section label="Calendar">
+              <Segmented
+                options={[
                   { id: userId, label: "You" },
                   { id: partner.id, label: partner.display_name.split(" ")[0] },
-                ].map((o) => (
-                  <button
-                    key={o.id}
-                    type="button"
-                    onClick={() => setOwnerId(o.id)}
-                    className={cn(
-                      "flex-1 rounded-full py-1.5",
-                      ownerId === o.id
-                        ? "bg-card text-foreground shadow-soft"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </Field>
+                ]}
+                value={ownerId}
+                onChange={setOwnerId}
+              />
+            </Section>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Date">
-              <Input
-                type="date"
-                value={taskDate}
-                onChange={(e) => setTaskDate(e.target.value)}
-              />
-            </Field>
-            <Field label="All day">
-              <div className="flex h-9 items-center">
-                <Switch checked={allDay} onCheckedChange={setAllDay} />
-              </div>
-            </Field>
-          </div>
+          <Section label="Date">
+            <Input
+              type="date"
+              value={taskDate}
+              onChange={(e) => setTaskDate(e.target.value)}
+              className="h-12 rounded-2xl border-0 bg-muted/60 px-4 text-base"
+            />
+          </Section>
+
+          <Row label="All day">
+            <Switch checked={allDay} onCheckedChange={setAllDay} />
+          </Row>
 
           {!allDay ? (
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Start">
+            <div className="space-y-4">
+              <Section label="Starts">
                 <Input
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
+                  className="h-12 w-full rounded-2xl border-0 bg-muted/60 px-4 text-base"
                 />
-              </Field>
-              <Field label="End">
+              </Section>
+              <Section label="Ends">
                 <Input
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
+                  className="h-12 w-full rounded-2xl border-0 bg-muted/60 px-4 text-base"
                 />
-              </Field>
+              </Section>
             </div>
           ) : null}
 
-          <Field label="Tags">
-            <div className="flex flex-wrap gap-1.5">
+          <Section label="Tags">
+            <div className="flex flex-wrap gap-2">
               {TASK_TAGS.map((t) => {
                 const on = tags.includes(t.id);
                 return (
@@ -187,41 +179,41 @@ export function TaskDialog({
                     type="button"
                     onClick={() => toggleTag(t.id)}
                     className={cn(
-                      "flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                      on ? t.chip : "text-muted-foreground",
+                      "flex min-h-10 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                      on ? t.chip : "border-border text-muted-foreground",
                     )}
                   >
-                    <span className={cn("size-2 rounded-full", t.dot)} />
+                    <span className={cn("size-2.5 rounded-full", t.dot)} />
                     {t.label}
                   </button>
                 );
               })}
             </div>
-          </Field>
+          </Section>
 
-          <Field label="Repeat">
-            <div className="flex flex-wrap gap-1.5">
+          <Section label="Repeat">
+            <div className="flex flex-wrap gap-2">
               {RECURRENCES.map((r) => (
                 <button
                   key={r.id}
                   type="button"
                   onClick={() => setRecurrence(r.id)}
                   className={cn(
-                    "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                    "min-h-10 rounded-full border px-3.5 text-sm font-medium transition-colors",
                     recurrence === r.id
                       ? "border-primary bg-primary/10 text-primary"
-                      : "text-muted-foreground",
+                      : "border-border text-muted-foreground",
                   )}
                 >
                   {r.label}
                 </button>
               ))}
             </div>
-          </Field>
+          </Section>
 
-          <div className="flex items-center justify-between rounded-2xl bg-muted/60 px-3 py-2.5">
+          <div className="flex items-center justify-between rounded-2xl bg-muted/60 px-4 py-3.5">
             <div>
-              <p className="text-sm font-medium">Remind me</p>
+              <p className="text-sm font-semibold">Remind me</p>
               <p className="text-xs text-muted-foreground">
                 {remind ? "Notification at start time" : "Record only, no alert"}
               </p>
@@ -230,52 +222,89 @@ export function TaskDialog({
           </div>
 
           {task ? (
-            <div className="flex items-center justify-between rounded-2xl bg-muted/60 px-3 py-2.5">
-              <p className="text-sm font-medium">Completed</p>
+            <Row label="Completed">
               <Switch checked={done} onCheckedChange={setDone} />
-            </div>
+            </Row>
           ) : null}
 
-          <Input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Note (optional)"
-          />
+          <Section label="Note">
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Optional"
+              className="h-12 rounded-2xl border-0 bg-muted/60 px-4 text-base"
+            />
+          </Section>
         </div>
 
-        <DialogFooter className="gap-2 sm:flex-row-reverse sm:justify-start">
-          <Button onClick={save} disabled={busy} className="flex-1 rounded-full">
-            {busy ? "Saving…" : "Save"}
+        <div className="space-y-1 border-t px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+          <Button
+            onClick={save}
+            disabled={busy}
+            className="h-12 w-full rounded-full text-base font-semibold"
+          >
+            {busy ? "Saving…" : "Save task"}
           </Button>
           {task ? (
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Delete task"
               onClick={remove}
               disabled={busy}
+              className="w-full py-2.5 text-center text-sm font-medium text-destructive"
             >
-              <Trash2 className="size-4 text-destructive" />
-            </Button>
+              Delete task
+            </button>
           ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
-function Field({
-  label,
-  children,
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-muted/60 px-4 py-3.5">
+      <span className="text-sm font-semibold">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function Segmented({
+  options,
+  value,
+  onChange,
 }: {
-  label: string;
-  children: React.ReactNode;
+  options: { id: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
 }) {
   return (
-    <label className="block space-y-1">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      {children}
-    </label>
+    <div className="flex rounded-full bg-muted p-1 text-sm font-semibold">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onChange(o.id)}
+          className={cn(
+            "flex-1 rounded-full py-2.5 transition-colors",
+            value === o.id ? "bg-card text-foreground shadow-soft" : "text-muted-foreground",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }

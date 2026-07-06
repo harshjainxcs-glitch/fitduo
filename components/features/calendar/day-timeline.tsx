@@ -113,25 +113,26 @@ export function DayTimeline({
                 type="button"
                 onClick={() => onTaskTap(t)}
                 className={cn(
-                  "absolute left-14 right-2 overflow-hidden rounded-xl border border-l-4 bg-card px-2.5 py-1 text-left shadow-soft",
+                  "absolute left-14 right-2 overflow-hidden rounded-2xl border border-l-[5px] px-3 py-1.5 text-left",
                   tag?.block ?? "border-l-primary",
+                  tag?.tint ?? "bg-primary/[0.06]",
                   t.done && "opacity-50",
                 )}
                 style={{ top: top + 2, height }}
               >
                 <p
                   className={cn(
-                    "truncate text-xs font-semibold",
+                    "truncate text-sm font-bold",
                     t.done && "line-through",
                   )}
                 >
                   {t.title}
                 </p>
-                <p className="flex items-center gap-1 truncate text-[10px] text-muted-foreground">
+                <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
                   {formatTime(t.start_time!)}
                   {t.end_time ? `–${formatTime(t.end_time)}` : ""}
-                  {t.remind ? <Bell className="size-2.5" /> : null}
-                  {t.recurrence !== "none" ? <Repeat className="size-2.5" /> : null}
+                  {t.remind ? <Bell className="size-3" /> : null}
+                  {t.recurrence !== "none" ? <Repeat className="size-3" /> : null}
                 </p>
               </button>
             );

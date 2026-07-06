@@ -30,10 +30,12 @@ const MONTHS_FULL = [
 export function CalendarView({
   userId,
   partner,
+  meName,
   today,
 }: {
   userId: string;
   partner: Partner;
+  meName: string;
   today: string;
 }) {
   const qc = useQueryClient();
@@ -227,6 +229,7 @@ export function CalendarView({
         initial={newInitial}
         userId={userId}
         partner={partner}
+        meName={meName}
         onClose={closeDialog}
         onSaved={onSaved}
       />

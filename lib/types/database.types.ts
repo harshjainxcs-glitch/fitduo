@@ -485,6 +485,72 @@ export type Database = {
         };
         Relationships: [];
       };
+      activities: {
+        Row: {
+          id: string;
+          created_at: string;
+          actor_id: string;
+          recipient_id: string;
+          kind: string;
+          title: string;
+          body: string | null;
+          url: string | null;
+          read: boolean;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          actor_id: string;
+          recipient_id: string;
+          kind: string;
+          title: string;
+          body?: string | null;
+          url?: string | null;
+          read?: boolean;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          actor_id?: string;
+          recipient_id?: string;
+          kind?: string;
+          title?: string;
+          body?: string | null;
+          url?: string | null;
+          read?: boolean;
+        };
+        Relationships: [];
+      };
+      task_comments: {
+        Row: {
+          id: string;
+          created_at: string;
+          task_id: string;
+          user_id: string;
+          body: string;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          task_id: string;
+          user_id: string;
+          body: string;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          task_id?: string;
+          user_id?: string;
+          body?: string;
+        };
+        Relationships: [];
+      };
+      story_views: {
+        Row: { story_id: string; user_id: string; created_at: string };
+        Insert: { story_id: string; user_id: string; created_at?: string };
+        Update: { story_id?: string; user_id?: string; created_at?: string };
+        Relationships: [];
+      };
       calendar_tasks: {
         Row: {
           id: string;
@@ -600,6 +666,9 @@ export type PushSubscriptionRow = Tables<"push_subscriptions">;
 export type WeeklyResult = Tables<"weekly_results">;
 export type Achievement = Tables<"achievements">;
 export type CalendarTask = Tables<"calendar_tasks">;
+export type Activity = Tables<"activities">;
+export type TaskComment = Tables<"task_comments">;
+export type StoryView = Tables<"story_views">;
 export type Story = Tables<"stories">;
 export type Post = Tables<"posts">;
 export type PostLike = Tables<"post_likes">;

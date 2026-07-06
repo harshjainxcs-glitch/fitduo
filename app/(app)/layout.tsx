@@ -1,4 +1,5 @@
 import { Sparkles } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
 import { BottomNav } from "@/components/bottom-nav";
 import { RealtimeSync } from "@/components/realtime-sync";
 import { PushManager } from "@/components/features/notifications/push-manager";
@@ -55,6 +56,7 @@ export default async function AppLayout({
             <Sparkles className="size-3.5" />
             {points}
           </span>
+          <NotificationBell />
           <div className="flex size-10 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
             {initials}
           </div>

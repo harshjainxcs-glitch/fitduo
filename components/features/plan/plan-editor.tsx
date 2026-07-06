@@ -13,12 +13,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 type Partner = { id: string; display_name: string } | null;
 type GroupDraft = { id?: string; name: string; time: string };
@@ -334,11 +334,11 @@ export function PlanEditor({
       )}
 
       {/* Group dialog */}
-      <Dialog open={groupDraft !== null} onOpenChange={(o) => !o && setGroupDraft(null)}>
-        <DialogContent className="max-w-sm rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>{groupDraft?.id ? "Edit meal" : "New meal"}</DialogTitle>
-          </DialogHeader>
+      <Sheet open={groupDraft !== null} onOpenChange={(o) => !o && setGroupDraft(null)}>
+        <SheetContent side="bottom" className="mx-auto max-w-md rounded-t-3xl">
+          <SheetHeader>
+            <SheetTitle>{groupDraft?.id ? "Edit meal" : "New meal"}</SheetTitle>
+          </SheetHeader>
           {groupDraft ? (
             <div className="space-y-3">
               <label className="block space-y-1.5">
@@ -351,20 +351,20 @@ export function PlanEditor({
               </label>
             </div>
           ) : null}
-          <DialogFooter>
+          <SheetFooter>
             <Button onClick={saveGroup} disabled={busy} className="w-full rounded-full">
               {busy ? "Saving…" : "Save"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Item dialog */}
-      <Dialog open={itemDraft !== null} onOpenChange={(o) => !o && setItemDraft(null)}>
-        <DialogContent className="max-w-sm rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>{itemDraft?.id ? "Edit item" : "Add item"}</DialogTitle>
-          </DialogHeader>
+      <Sheet open={itemDraft !== null} onOpenChange={(o) => !o && setItemDraft(null)}>
+        <SheetContent side="bottom" className="mx-auto max-w-md rounded-t-3xl">
+          <SheetHeader>
+            <SheetTitle>{itemDraft?.id ? "Edit item" : "Add item"}</SheetTitle>
+          </SheetHeader>
           {itemDraft ? (
             <div className="space-y-3">
               <label className="block space-y-1.5">
@@ -381,13 +381,13 @@ export function PlanEditor({
               </label>
             </div>
           ) : null}
-          <DialogFooter>
+          <SheetFooter>
             <Button onClick={saveItem} disabled={busy} className="w-full rounded-full">
               {busy ? "Saving…" : "Save"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

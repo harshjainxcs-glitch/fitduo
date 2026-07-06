@@ -18,6 +18,9 @@ const TABLES = [
   "post_comments",
   "meal_groups",
   "stories",
+  "story_views",
+  "activities",
+  "task_comments",
 ] as const;
 
 export function RealtimeSync() {

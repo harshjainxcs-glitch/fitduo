@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { CalendarClock, Check, Send } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { notifyPartner } from "@/lib/actions/notify";
 import { RECURRENCES, TASK_TAGS } from "@/lib/calendar";
-import type { CalendarTask } from "@/lib/types/database.types";
+import { addDays, formatDateTime } from "@/lib/utils/date";
+import type { CalendarTask, TaskComment } from "@/lib/types/database.types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,11 +20,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-type Initial = {
-  task_date: string;
-  owner_id: string;
-  start_time?: string | null;
-};
+type Initial = { task_date: string; owner_id: string; start_time?: string | null };
+type Partner = { id: string; display_name: string } | null;
 
 export function TaskDialog({
   open,
@@ -28,6 +29,7 @@ export function TaskDialog({
   initial,
   userId,
   partner,
+  meName,
   onClose,
   onSaved,
 }: {
@@ -35,7 +37,8 @@ export function TaskDialog({
   task: CalendarTask | null;
   initial: Initial | null;
   userId: string;
-  partner: { id: string; display_name: string } | null;
+  partner: Partner;
+  meName: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -52,14 +55,13 @@ export function TaskDialog({
   const [recurrence, setRecurrence] = useState(task?.recurrence ?? "none");
   const [remind, setRemind] = useState(task?.remind ?? true);
   const [note, setNote] = useState(task?.note ?? "");
-  const [done, setDone] = useState(task?.done ?? false);
   const [busy, setBusy] = useState(false);
 
   function toggleTag(id: string) {
     setTags((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
   }
 
-  async function save() {
+  async function save(overrides: Partial<CalendarTask> = {}) {
     if (!title.trim()) {
       toast.error("Give the task a title.");
       return;
@@ -77,28 +79,48 @@ export function TaskDialog({
       tags,
       recurrence,
       remind,
-      done,
+      done: task?.done ?? false,
+      ...overrides,
     };
     const { error } = task
       ? await supabase.from("calendar_tasks").update(payload).eq("id", task.id)
-      : await supabase
-          .from("calendar_tasks")
-          .insert({ ...payload, created_by: userId });
+      : await supabase.from("calendar_tasks").insert({ ...payload, created_by: userId });
     setBusy(false);
-    if (error) toast.error("Couldn't save the task.");
-    else onSaved();
+    if (error) {
+      toast.error("Couldn't save the task.");
+      return;
+    }
+    if (!task) {
+      void notifyPartner({
+        kind: "task_new",
+        title:
+          ownerId !== userId
+            ? `${meName} added a task to your calendar`
+            : `${meName} added a task`,
+        body: payload.title,
+        url: "/calendar",
+      });
+    }
+    onSaved();
   }
 
   async function remove() {
     if (!task) return;
     setBusy(true);
-    const { error } = await createClient()
-      .from("calendar_tasks")
-      .delete()
-      .eq("id", task.id);
+    const { error } = await createClient().from("calendar_tasks").delete().eq("id", task.id);
     setBusy(false);
     if (error) toast.error("Couldn't delete.");
     else onSaved();
+  }
+
+  function nudge() {
+    void notifyPartner({
+      kind: "task_remind",
+      title: `${meName} nudged you 🔔`,
+      body: task?.title,
+      url: "/calendar",
+    });
+    toast.success("Nudge sent.");
   }
 
   return (
@@ -114,8 +136,37 @@ export function TaskDialog({
         </SheetHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-3">
+          {/* Quick actions (edit) */}
+          {task ? (
+            <div className="flex gap-2">
+              <Button
+                variant={task.done ? "default" : "outline"}
+                className="h-11 flex-1 rounded-2xl"
+                disabled={busy}
+                onClick={() => save({ done: !task.done })}
+              >
+                <Check className="mr-1 size-4" />
+                {task.done ? "Done" : "Mark done"}
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 flex-1 rounded-2xl"
+                disabled={busy}
+                onClick={() => save({ task_date: addDays(taskDate, 1) })}
+              >
+                <CalendarClock className="mr-1 size-4" />
+                Tomorrow
+              </Button>
+              {partner ? (
+                <Button variant="outline" className="h-11 rounded-2xl" disabled={busy} onClick={nudge}>
+                  Nudge
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
           <Input
-            autoFocus
+            autoFocus={!task}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="What's the plan?"
@@ -151,20 +202,10 @@ export function TaskDialog({
           {!allDay ? (
             <div className="space-y-4">
               <Section label="Starts">
-                <Input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="h-12 w-full rounded-2xl border-0 bg-muted/60 px-4 text-base"
-                />
+                <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="h-12 w-full rounded-2xl border-0 bg-muted/60 px-4 text-base" />
               </Section>
               <Section label="Ends">
-                <Input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="h-12 w-full rounded-2xl border-0 bg-muted/60 px-4 text-base"
-                />
+                <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="h-12 w-full rounded-2xl border-0 bg-muted/60 px-4 text-base" />
               </Section>
             </div>
           ) : null}
@@ -200,9 +241,7 @@ export function TaskDialog({
                   onClick={() => setRecurrence(r.id)}
                   className={cn(
                     "min-h-10 rounded-full border px-3.5 text-sm font-medium transition-colors",
-                    recurrence === r.id
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground",
+                    recurrence === r.id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground",
                   )}
                 >
                   {r.label}
@@ -221,37 +260,27 @@ export function TaskDialog({
             <Switch checked={remind} onCheckedChange={setRemind} />
           </div>
 
-          {task ? (
-            <Row label="Completed">
-              <Switch checked={done} onCheckedChange={setDone} />
-            </Row>
-          ) : null}
-
           <Section label="Note">
-            <Input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Optional"
-              className="h-12 rounded-2xl border-0 bg-muted/60 px-4 text-base"
-            />
+            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" className="h-12 rounded-2xl border-0 bg-muted/60 px-4 text-base" />
           </Section>
+
+          {task ? (
+            <TaskComments
+              taskId={task.id}
+              taskTitle={task.title}
+              userId={userId}
+              meName={meName}
+              partner={partner}
+            />
+          ) : null}
         </div>
 
         <div className="space-y-1 border-t px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
-          <Button
-            onClick={save}
-            disabled={busy}
-            className="h-12 w-full rounded-full text-base font-semibold"
-          >
+          <Button onClick={() => save()} disabled={busy} className="h-12 w-full rounded-full text-base font-semibold">
             {busy ? "Saving…" : "Save task"}
           </Button>
           {task ? (
-            <button
-              type="button"
-              onClick={remove}
-              disabled={busy}
-              className="w-full py-2.5 text-center text-sm font-medium text-destructive"
-            >
+            <button type="button" onClick={remove} disabled={busy} className="w-full py-2.5 text-center text-sm font-medium text-destructive">
               Delete task
             </button>
           ) : null}
@@ -261,12 +290,90 @@ export function TaskDialog({
   );
 }
 
+function TaskComments({
+  taskId,
+  taskTitle,
+  userId,
+  meName,
+  partner,
+}: {
+  taskId: string;
+  taskTitle: string;
+  userId: string;
+  meName: string;
+  partner: Partner;
+}) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState("");
+
+  const { data: comments = [] } = useQuery({
+    queryKey: ["task_comments", taskId],
+    queryFn: async (): Promise<TaskComment[]> => {
+      const { data, error } = await createClient()
+        .from("task_comments")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("created_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const nameOf = (id: string) =>
+    id === userId ? meName : (partner?.display_name.split(" ")[0] ?? "Partner");
+
+  async function send() {
+    const body = draft.trim();
+    if (!body) return;
+    setDraft("");
+    const { error } = await createClient()
+      .from("task_comments")
+      .insert({ task_id: taskId, user_id: userId, body });
+    if (error) {
+      toast.error("Couldn't send.");
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["task_comments", taskId] });
+    void notifyPartner({
+      kind: "task_comment",
+      title: `${meName} on "${taskTitle}"`,
+      body,
+      url: "/calendar",
+    });
+  }
+
+  return (
+    <Section label="Updates">
+      <div className="space-y-2">
+        {comments.map((c) => (
+          <div key={c.id} className="rounded-2xl bg-muted/50 px-3 py-2">
+            <p className="text-sm">
+              <span className="font-semibold">{nameOf(c.user_id)}</span> {c.body}
+            </p>
+            <p className="text-[10px] text-muted-foreground">{formatDateTime(c.created_at)}</p>
+          </div>
+        ))}
+        <div className="flex items-center gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send()}
+            placeholder="Give an update…"
+            className="h-11 rounded-full"
+          />
+          <Button size="icon" aria-label="Send update" onClick={send}>
+            <Send className="size-4" />
+          </Button>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       {children}
     </div>
   );

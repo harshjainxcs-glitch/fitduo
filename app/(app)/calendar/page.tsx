@@ -15,6 +15,15 @@ export default async function CalendarPage() {
     .select("id,display_name")
     .order("created_at");
   const partner = profiles?.find((p) => p.id !== user.id) ?? null;
+  const meName =
+    profiles?.find((p) => p.id === user.id)?.display_name.split(" ")[0] ?? "Your partner";
 
-  return <CalendarView userId={user.id} partner={partner} today={todayIST()} />;
+  return (
+    <CalendarView
+      userId={user.id}
+      partner={partner}
+      meName={meName}
+      today={todayIST()}
+    />
+  );
 }

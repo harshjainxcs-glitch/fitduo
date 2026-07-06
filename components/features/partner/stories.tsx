@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Send, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadPhoto, signedPhotoUrl } from "@/lib/storage";
+import { notifyPartner } from "@/lib/actions/notify";
 import { todayIST } from "@/lib/utils/date";
 import type { Profile, Story } from "@/lib/types/database.types";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,19 @@ export function Stories({
     },
   });
 
+  const { data: myViews = [] } = useQuery({
+    queryKey: ["story_views", currentUserId],
+    queryFn: async () => {
+      const { data, error } = await createClient()
+        .from("story_views")
+        .select("story_id")
+        .eq("user_id", currentUserId);
+      if (error) throw error;
+      return data;
+    },
+  });
+  const viewedIds = new Set(myViews.map((v) => v.story_id));
+
   const ordered = [...profiles].sort((a, b) =>
     a.id === currentUserId ? -1 : b.id === currentUserId ? 1 : 0,
   );
@@ -71,6 +85,7 @@ export function Stories({
   }));
   const activeGroups = groups.filter((g) => g.stories.length > 0);
   const me = ordered.find((p) => p.id === currentUserId);
+  const myName = me ? firstName(me) : "Your partner";
   const myGroup = groups.find((g) => g.user.id === currentUserId);
   const myActiveIndex = activeGroups.findIndex((g) => g.user.id === currentUserId);
 
@@ -84,6 +99,7 @@ export function Stories({
             fallback={initials(me)}
             imageUrl={myGroup?.stories[0]?.url ?? null}
             hasStory={(myGroup?.stories.length ?? 0) > 0}
+            unseen
             showAdd
             onOpen={() =>
               (myGroup?.stories.length ?? 0) > 0
@@ -104,6 +120,7 @@ export function Stories({
               fallback={initials(g.user)}
               imageUrl={g.stories[0].url}
               hasStory
+              unseen={g.stories.some((s) => !viewedIds.has(s.id))}
               onOpen={() => setViewerStart(activeGroups.indexOf(g))}
             />
           ))}
@@ -116,6 +133,11 @@ export function Stories({
           onPosted={() => {
             setComposerOpen(false);
             qc.invalidateQueries({ queryKey: ["stories"] });
+            void notifyPartner({
+              kind: "story_new",
+              title: `${me ? firstName(me) : "Your partner"} added a story ✨`,
+              url: "/us",
+            });
           }}
         />
       ) : null}
@@ -126,8 +148,12 @@ export function Stories({
           groups={activeGroups}
           startGroupIndex={viewerStart}
           currentUserId={currentUserId}
+          myName={myName}
           onClose={() => setViewerStart(null)}
-          onChanged={() => qc.invalidateQueries({ queryKey: ["stories"] })}
+          onChanged={() => {
+            qc.invalidateQueries({ queryKey: ["stories"] });
+            qc.invalidateQueries({ queryKey: ["story_views", currentUserId] });
+          }}
         />
       ) : null}
     </div>
@@ -139,6 +165,7 @@ function StoryCircle({
   fallback,
   imageUrl,
   hasStory,
+  unseen,
   showAdd,
   onOpen,
   onAdd,
@@ -147,6 +174,7 @@ function StoryCircle({
   fallback: string;
   imageUrl: string | null;
   hasStory: boolean;
+  unseen?: boolean;
   showAdd?: boolean;
   onOpen: () => void;
   onAdd?: () => void;
@@ -157,9 +185,11 @@ function StoryCircle({
         <span
           className={cn(
             "block rounded-full p-[2.5px]",
-            hasStory
-              ? "bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-500"
-              : "bg-muted",
+            !hasStory
+              ? "bg-muted"
+              : unseen
+                ? "bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-500"
+                : "bg-border",
           )}
         >
           <span className="block rounded-full border-2 border-background">
@@ -322,12 +352,14 @@ function StoryViewer({
   groups,
   startGroupIndex,
   currentUserId,
+  myName,
   onClose,
   onChanged,
 }: {
   groups: Group[];
   startGroupIndex: number;
   currentUserId: string;
+  myName: string;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -337,20 +369,36 @@ function StoryViewer({
   const startPos = groups
     .slice(0, startGroupIndex)
     .reduce((n, g) => n + g.stories.length, 0);
+  const qc = useQueryClient();
   const [pos, setPos] = useState(startPos);
+  const [paused, setPaused] = useState(false);
+  const [reply, setReply] = useState("");
 
   const current = items[Math.min(pos, items.length - 1)];
+  const storyId = current?.story.id;
 
+  // Auto-advance (paused while replying).
   useEffect(() => {
+    if (paused) return;
     const id = setTimeout(() => {
       if (pos < items.length - 1) setPos((p) => p + 1);
       else onClose();
     }, DURATION);
     return () => clearTimeout(id);
-  }, [pos, items.length, onClose]);
+  }, [pos, paused, items.length, onClose]);
+
+  // Mark the current story seen (stable deps → no loop).
+  useEffect(() => {
+    if (!storyId) return;
+    createClient()
+      .from("story_views")
+      .upsert({ story_id: storyId, user_id: currentUserId }, { onConflict: "story_id,user_id" })
+      .then(() => qc.invalidateQueries({ queryKey: ["story_views", currentUserId] }));
+  }, [storyId, currentUserId, qc]);
 
   if (!current) return null;
   const { group, story } = current;
+  const isMine = group.user.id === currentUserId;
   const groupStart = groups
     .slice(0, groups.indexOf(group))
     .reduce((n, g) => n + g.stories.length, 0);
@@ -362,9 +410,21 @@ function StoryViewer({
     onClose();
   }
 
+  function sendReply(text: string) {
+    const body = text.trim();
+    if (!body) return;
+    setReply("");
+    void notifyPartner({
+      kind: "story_reply",
+      title: `${myName} replied to your story`,
+      body,
+      url: "/us",
+    });
+    toast.success("Sent 💬");
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
-      {/* Progress bars for this user's stories */}
       <div className="flex gap-1 px-3 pt-3">
         {group.stories.map((s, i) => (
           <div key={s.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/30">
@@ -373,22 +433,23 @@ function StoryViewer({
               style={
                 i < localIndex
                   ? { transform: "scaleX(1)" }
-                  : i === localIndex
+                  : i === localIndex && !paused
                     ? { animation: `story-progress ${DURATION}ms linear forwards` }
-                    : { transform: "scaleX(0)" }
+                    : i === localIndex
+                      ? { transform: "scaleX(0.15)" }
+                      : { transform: "scaleX(0)" }
               }
             />
           </div>
         ))}
       </div>
 
-      {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 text-white">
         <span className="flex size-8 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
           {initials(group.user)}
         </span>
         <span className="flex-1 text-sm font-semibold">{firstName(group.user)}</span>
-        {group.user.id === currentUserId ? (
+        {isMine ? (
           <button type="button" aria-label="Delete story" onClick={del}>
             <Trash2 className="size-5" />
           </button>
@@ -398,7 +459,6 @@ function StoryViewer({
         </button>
       </div>
 
-      {/* Image + text */}
       <div className="relative flex-1">
         {story.url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -418,7 +478,6 @@ function StoryViewer({
           </span>
         ) : null}
 
-        {/* Tap zones */}
         <button
           type="button"
           aria-label="Previous"
@@ -432,6 +491,34 @@ function StoryViewer({
           onClick={() => (pos < items.length - 1 ? setPos((p) => p + 1) : onClose())}
         />
       </div>
+
+      {/* Reply bar (not on your own story) */}
+      {!isMine ? (
+        <div className="flex items-center gap-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+          <input
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onFocus={() => setPaused(true)}
+            onBlur={() => setPaused(false)}
+            onKeyDown={(e) => e.key === "Enter" && sendReply(reply)}
+            placeholder={`Reply to ${firstName(group.user)}…`}
+            className="h-11 flex-1 rounded-full border border-white/40 bg-transparent px-4 text-sm text-white placeholder:text-white/60 focus:outline-none"
+          />
+          <button
+            type="button"
+            aria-label="Send love"
+            onClick={() => sendReply("❤️")}
+            className="text-2xl"
+          >
+            ❤️
+          </button>
+          {reply.trim() ? (
+            <button type="button" aria-label="Send reply" onClick={() => sendReply(reply)} className="text-white">
+              <Send className="size-6" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

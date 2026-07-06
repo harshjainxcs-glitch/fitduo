@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Heart, ImagePlus, MessageCircle, Send, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadPhoto, signedPhotoUrl } from "@/lib/storage";
+import { notifyPartner } from "@/lib/actions/notify";
 import {
   addDays,
   formatDateTime,
@@ -49,6 +50,7 @@ export function Feed({
 
   const nameOf = (id: string) =>
     profiles.find((p) => p.id === id)?.display_name.split(" ")[0] ?? "Partner";
+  const myName = nameOf(currentUserId);
   const initialsOf = (id: string) =>
     (profiles.find((p) => p.id === id)?.display_name ?? "??").slice(0, 2).toUpperCase();
 
@@ -100,6 +102,7 @@ export function Feed({
         await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
       } else {
         await supabase.from("post_likes").insert({ post_id: postId, user_id: currentUserId });
+        void notifyPartner({ kind: "like", title: `${myName} liked your post ❤️`, url: "/us" });
       }
     },
     onMutate: async (postId) => {
@@ -126,7 +129,10 @@ export function Feed({
       .from("post_comments")
       .insert({ post_id: postId, user_id: currentUserId, body });
     if (error) toast.error("Couldn't send.");
-    else qc.invalidateQueries({ queryKey: ["post_comments"] });
+    else {
+      qc.invalidateQueries({ queryKey: ["post_comments"] });
+      void notifyPartner({ kind: "comment", title: `${myName} commented`, body, url: "/us" });
+    }
   }
 
   async function createPost() {
@@ -149,6 +155,12 @@ export function Feed({
       setCaption("");
       setWeekStart(weekStartIST(todayIST()));
       qc.invalidateQueries({ queryKey: ["posts"] });
+      void notifyPartner({
+        kind: "post_new",
+        title: `${myName} shared a moment 📸`,
+        body: caption.trim() || undefined,
+        url: "/us",
+      });
       toast.success("Shared 💛");
     } catch {
       toast.error("Couldn't share.");

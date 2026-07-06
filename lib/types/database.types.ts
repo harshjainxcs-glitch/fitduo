@@ -93,6 +93,7 @@ export type Database = {
           target_calories: number | null;
           sort_order: number;
           is_active: boolean;
+          meal_group_id: string | null;
         };
         Insert: {
           id?: string;
@@ -107,6 +108,7 @@ export type Database = {
           target_calories?: number | null;
           sort_order?: number;
           is_active?: boolean;
+          meal_group_id?: string | null;
         };
         Update: {
           id?: string;
@@ -121,6 +123,7 @@ export type Database = {
           target_calories?: number | null;
           sort_order?: number;
           is_active?: boolean;
+          meal_group_id?: string | null;
         };
         Relationships: [];
       };
@@ -131,6 +134,7 @@ export type Database = {
           updated_at: string;
           user_id: string;
           plan_item_id: string | null;
+          meal_group_id: string | null;
           log_date: string;
           logged_at: string;
           status: MealStatus;
@@ -144,6 +148,7 @@ export type Database = {
           updated_at?: string;
           user_id: string;
           plan_item_id?: string | null;
+          meal_group_id?: string | null;
           log_date: string;
           logged_at?: string;
           status?: MealStatus;
@@ -157,6 +162,7 @@ export type Database = {
           updated_at?: string;
           user_id?: string;
           plan_item_id?: string | null;
+          meal_group_id?: string | null;
           log_date?: string;
           logged_at?: string;
           status?: MealStatus;
@@ -278,6 +284,7 @@ export type Database = {
           winner_id: string | null;
           prize: string | null;
           prize_paid: boolean;
+          prize_photo_path: string | null;
         };
         Insert: {
           id?: string;
@@ -291,6 +298,7 @@ export type Database = {
           winner_id?: string | null;
           prize?: string | null;
           prize_paid?: boolean;
+          prize_photo_path?: string | null;
         };
         Update: {
           id?: string;
@@ -304,6 +312,7 @@ export type Database = {
           winner_id?: string | null;
           prize?: string | null;
           prize_paid?: boolean;
+          prize_photo_path?: string | null;
         };
         Relationships: [];
       };
@@ -349,6 +358,100 @@ export type Database = {
           category?: string;
           dedupe_key?: string;
           sent_at?: string;
+        };
+        Relationships: [];
+      };
+      meal_groups: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          user_id: string;
+          name: string;
+          target_time: string | null;
+          sort_order: number;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          user_id: string;
+          name: string;
+          target_time?: string | null;
+          sort_order?: number;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          user_id?: string;
+          name?: string;
+          target_time?: string | null;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
+      posts: {
+        Row: {
+          id: string;
+          created_at: string;
+          user_id: string;
+          post_date: string;
+          image_path: string;
+          caption: string | null;
+          kind: string;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          user_id: string;
+          post_date: string;
+          image_path: string;
+          caption?: string | null;
+          kind?: string;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          user_id?: string;
+          post_date?: string;
+          image_path?: string;
+          caption?: string | null;
+          kind?: string;
+        };
+        Relationships: [];
+      };
+      post_likes: {
+        Row: {
+          post_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: { post_id: string; user_id: string; created_at?: string };
+        Update: { post_id?: string; user_id?: string; created_at?: string };
+        Relationships: [];
+      };
+      post_comments: {
+        Row: {
+          id: string;
+          created_at: string;
+          post_id: string;
+          user_id: string;
+          body: string;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          post_id: string;
+          user_id: string;
+          body: string;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          post_id?: string;
+          user_id?: string;
+          body?: string;
         };
         Relationships: [];
       };
@@ -459,6 +562,7 @@ export type Views<T extends keyof PublicSchema["Views"]> =
 
 export type Profile = Tables<"profiles">;
 export type PlanItem = Tables<"plan_items">;
+export type MealGroup = Tables<"meal_groups">;
 export type MealLog = Tables<"meal_logs">;
 export type WaterLog = Tables<"water_logs">;
 export type WorkoutLog = Tables<"workout_logs">;
@@ -466,5 +570,8 @@ export type PushSubscriptionRow = Tables<"push_subscriptions">;
 export type WeeklyResult = Tables<"weekly_results">;
 export type Achievement = Tables<"achievements">;
 export type CalendarTask = Tables<"calendar_tasks">;
+export type Post = Tables<"posts">;
+export type PostLike = Tables<"post_likes">;
+export type PostComment = Tables<"post_comments">;
 export type DailyScore = Views<"daily_scores">;
 export type WeeklyScore = Views<"weekly_scores">;

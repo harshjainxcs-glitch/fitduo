@@ -13,6 +13,10 @@ const TABLES = [
   "workout_logs",
   "weekly_results",
   "calendar_tasks",
+  "posts",
+  "post_likes",
+  "post_comments",
+  "meal_groups",
 ] as const;
 
 export function RealtimeSync() {

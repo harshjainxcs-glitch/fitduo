@@ -9,6 +9,7 @@ import { pickMotivation } from "@/components/features/motivation/messages";
 import { Confetti } from "@/components/features/motivation/confetti";
 import { AchievementsWatcher } from "@/components/features/motivation/achievements-watcher";
 import type {
+  MealGroup,
   MealLog,
   PlanItem,
   Profile,
@@ -44,6 +45,17 @@ export function TodayHero({
         .select("*")
         .eq("user_id", userId)
         .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+  const { data: mealGroups = [] } = useQuery({
+    queryKey: ["meal_groups", userId],
+    queryFn: async (): Promise<MealGroup[]> => {
+      const { data, error } = await supabase
+        .from("meal_groups")
+        .select("*")
+        .eq("user_id", userId);
       if (error) throw error;
       return data;
     },
@@ -88,6 +100,7 @@ export function TodayHero({
   const d = deriveDaily({
     profile,
     date,
+    mealGroups,
     planItems,
     mealLogs,
     waterLogs,

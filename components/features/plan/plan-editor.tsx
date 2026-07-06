@@ -8,7 +8,7 @@ import { Clock, Copy, Flame, Pencil, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { WEEKDAYS } from "@/lib/constants";
 import { formatTime } from "@/lib/utils/date";
-import type { PlanItem } from "@/lib/types/database.types";
+import type { MealGroup, PlanItem } from "@/lib/types/database.types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,22 +21,8 @@ import {
 } from "@/components/ui/dialog";
 
 type Partner = { id: string; display_name: string } | null;
-
-type Editing = {
-  id?: string;
-  day: number;
-  title: string;
-  target_time: string;
-  target_calories: string;
-  note: string;
-};
-
-function sortMeals(a: PlanItem, b: PlanItem) {
-  const ta = a.target_time ?? "99:99";
-  const tb = b.target_time ?? "99:99";
-  if (ta !== tb) return ta < tb ? -1 : 1;
-  return a.sort_order - b.sort_order;
-}
+type GroupDraft = { id?: string; name: string; time: string };
+type ItemDraft = { id?: string; groupId: string; title: string; calories: string; note: string };
 
 export function PlanEditor({
   userId,
@@ -50,15 +36,27 @@ export function PlanEditor({
   const qc = useQueryClient();
   const [view, setView] = useState<"you" | "partner">("you");
   const [day, setDay] = useState(initialDay);
-  const [editing, setEditing] = useState<Editing | null>(null);
+  const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
+  const [itemDraft, setItemDraft] = useState<ItemDraft | null>(null);
   const [busy, setBusy] = useState(false);
 
   const viewId = view === "you" ? userId : (partner?.id ?? userId);
   const readOnly = view === "partner";
-  const queryKey = ["plan_items", viewId] as const;
 
-  const { data: items = [], isLoading } = useQuery({
-    queryKey,
+  const { data: groups = [] } = useQuery({
+    queryKey: ["meal_groups", viewId],
+    queryFn: async (): Promise<MealGroup[]> => {
+      const { data, error } = await createClient()
+        .from("meal_groups")
+        .select("*")
+        .eq("user_id", viewId)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+  const { data: items = [] } = useQuery({
+    queryKey: ["plan_items", viewId],
     queryFn: async (): Promise<PlanItem[]> => {
       const { data, error } = await createClient()
         .from("plan_items")
@@ -70,70 +68,101 @@ export function PlanEditor({
     },
   });
 
-  const invalidate = () =>
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["meal_groups", userId] });
     qc.invalidateQueries({ queryKey: ["plan_items", userId] });
+  };
 
-  const dayItems = useMemo(
-    () => items.filter((i) => i.day_of_week === day).sort(sortMeals),
-    [items, day],
+  const sortedGroups = useMemo(
+    () =>
+      [...groups].sort((a, b) => {
+        const ta = a.target_time ?? "99:99";
+        const tb = b.target_time ?? "99:99";
+        if (ta !== tb) return ta < tb ? -1 : 1;
+        return a.sort_order - b.sort_order;
+      }),
+    [groups],
   );
+  const itemsFor = (groupId: string) =>
+    items
+      .filter((i) => i.meal_group_id === groupId && i.day_of_week === day)
+      .sort((a, b) => a.sort_order - b.sort_order);
 
-  function openAdd() {
-    setEditing({ day, title: "", target_time: "", target_calories: "", note: "" });
+  async function saveGroup() {
+    if (!groupDraft) return;
+    const name = groupDraft.name.trim();
+    if (!name) {
+      toast.error("Name the meal (e.g. Breakfast).");
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const payload = { name, target_time: groupDraft.time || null };
+    const { error } = groupDraft.id
+      ? await supabase.from("meal_groups").update(payload).eq("id", groupDraft.id)
+      : await supabase.from("meal_groups").insert({
+          user_id: userId,
+          sort_order: Math.max(0, ...groups.map((g) => g.sort_order)) + 1,
+          ...payload,
+        });
+    setBusy(false);
+    if (error) toast.error("Couldn't save the meal.");
+    else {
+      setGroupDraft(null);
+      invalidate();
+    }
   }
-  function openEdit(item: PlanItem) {
-    setEditing({
-      id: item.id,
-      day: item.day_of_week,
-      title: item.title,
-      target_time: item.target_time?.slice(0, 5) ?? "",
-      target_calories: item.target_calories?.toString() ?? "",
-      note: item.note ?? "",
-    });
+
+  async function deleteGroup(group: MealGroup) {
+    if (
+      !window.confirm(
+        `Delete "${group.name}"? Its items on every day will be removed.`,
+      )
+    )
+      return;
+    const { error } = await createClient().from("meal_groups").delete().eq("id", group.id);
+    if (error) toast.error("Couldn't delete.");
+    else invalidate();
   }
 
   async function saveItem() {
-    if (!editing) return;
-    const title = editing.title.trim();
+    if (!itemDraft) return;
+    const title = itemDraft.title.trim();
     if (!title) {
-      toast.error("Give the meal a name.");
+      toast.error("Add a food item.");
       return;
     }
     setBusy(true);
     const supabase = createClient();
     const payload = {
       title,
-      target_time: editing.target_time || null,
-      target_calories: editing.target_calories
-        ? Number(editing.target_calories)
-        : null,
-      note: editing.note.trim() || null,
+      target_calories: itemDraft.calories ? Number(itemDraft.calories) : null,
+      note: itemDraft.note.trim() || null,
     };
     let error;
-    if (editing.id) {
-      ({ error } = await supabase
-        .from("plan_items")
-        .update(payload)
-        .eq("id", editing.id));
+    if (itemDraft.id) {
+      ({ error } = await supabase.from("plan_items").update(payload).eq("id", itemDraft.id));
     } else {
       const maxSort = Math.max(
         0,
-        ...items.filter((i) => i.day_of_week === editing.day).map((i) => i.sort_order),
+        ...items
+          .filter((i) => i.meal_group_id === itemDraft.groupId && i.day_of_week === day)
+          .map((i) => i.sort_order),
       );
       ({ error } = await supabase.from("plan_items").insert({
         user_id: userId,
-        day_of_week: editing.day,
+        meal_group_id: itemDraft.groupId,
+        day_of_week: day,
         sort_order: maxSort + 1,
         ...payload,
       }));
     }
     setBusy(false);
-    if (error) {
-      toast.error("Couldn't save the meal.");
-      return;
+    if (error) toast.error("Couldn't save the item.");
+    else {
+      setItemDraft(null);
+      invalidate();
     }
-    setEditing(null);
-    invalidate();
   }
 
   async function deleteItem(id: string) {
@@ -142,23 +171,25 @@ export function PlanEditor({
     else invalidate();
   }
 
-  async function applyToAllDays() {
+  async function copyItemsToAllDays(group: MealGroup) {
     setBusy(true);
     const supabase = createClient();
-    const source = items.filter((i) => i.day_of_week === day);
-    const otherIds = items.filter((i) => i.day_of_week !== day).map((i) => i.id);
+    const src = items.filter((i) => i.meal_group_id === group.id && i.day_of_week === day);
+    const otherIds = items
+      .filter((i) => i.meal_group_id === group.id && i.day_of_week !== day)
+      .map((i) => i.id);
     if (otherIds.length) await supabase.from("plan_items").delete().in("id", otherIds);
     const rows = [];
     for (let d = 0; d < 7; d++) {
       if (d === day) continue;
-      for (const i of source) {
+      for (const i of src) {
         rows.push({
           user_id: userId,
+          meal_group_id: group.id,
           day_of_week: d,
           title: i.title,
-          target_time: i.target_time,
-          note: i.note,
           target_calories: i.target_calories,
+          note: i.note,
           sort_order: i.sort_order,
         });
       }
@@ -166,44 +197,18 @@ export function PlanEditor({
     if (rows.length) await supabase.from("plan_items").insert(rows);
     setBusy(false);
     invalidate();
-    toast.success("Applied to every day.");
-  }
-
-  async function copyFrom(sourceDay: number) {
-    if (sourceDay === day) return;
-    setBusy(true);
-    const supabase = createClient();
-    const source = items.filter((i) => i.day_of_week === sourceDay);
-    const targetIds = items.filter((i) => i.day_of_week === day).map((i) => i.id);
-    if (targetIds.length) await supabase.from("plan_items").delete().in("id", targetIds);
-    const rows = source.map((i) => ({
-      user_id: userId,
-      day_of_week: day,
-      title: i.title,
-      target_time: i.target_time,
-      note: i.note,
-      target_calories: i.target_calories,
-      sort_order: i.sort_order,
-    }));
-    if (rows.length) await supabase.from("plan_items").insert(rows);
-    setBusy(false);
-    invalidate();
-    toast.success(`Copied from ${WEEKDAYS[sourceDay].long}.`);
+    toast.success(`Copied ${group.name} to every day.`);
   }
 
   return (
     <div className="space-y-4 px-4 py-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">Weekly plan</h2>
-        <Link
-          href="/settings"
-          className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-        >
+        <h2 className="text-lg font-bold">Meal plan</h2>
+        <Link href="/settings" className="text-xs font-medium text-primary hover:underline">
           Water &amp; workout →
         </Link>
       </div>
 
-      {/* You / Partner toggle */}
       {partner ? (
         <div className="flex rounded-full bg-muted p-1 text-sm font-semibold">
           {(["you", "partner"] as const).map((v) => (
@@ -213,9 +218,7 @@ export function PlanEditor({
               onClick={() => setView(v)}
               className={cn(
                 "flex-1 rounded-full py-1.5 transition-colors",
-                view === v
-                  ? "bg-card text-foreground shadow-soft"
-                  : "text-muted-foreground",
+                view === v ? "bg-card text-foreground shadow-soft" : "text-muted-foreground",
               )}
             >
               {v === "you" ? "You" : partner.display_name.split(" ")[0]}
@@ -224,7 +227,6 @@ export function PlanEditor({
         </div>
       ) : null}
 
-      {/* Day selector */}
       <div className="grid grid-cols-7 gap-1">
         {WEEKDAYS.map((d) => (
           <button
@@ -244,127 +246,138 @@ export function PlanEditor({
       </div>
 
       {!readOnly ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={openAdd} className="rounded-full">
-            <Plus className="mr-1 size-4" /> Add meal
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-full"
-            onClick={applyToAllDays}
-            disabled={busy || dayItems.length === 0}
-          >
-            <Copy className="mr-1 size-4" /> All days
-          </Button>
-          <CopyFromMenu currentDay={day} onPick={copyFrom} disabled={busy} />
-        </div>
+        <Button
+          size="sm"
+          className="rounded-full"
+          onClick={() => setGroupDraft({ name: "", time: "" })}
+        >
+          <Plus className="mr-1 size-4" /> Add meal
+        </Button>
       ) : null}
 
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : dayItems.length === 0 ? (
+      {sortedGroups.length === 0 ? (
         <div className="rounded-3xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          {readOnly
-            ? "No meals planned for this day."
-            : "No meals yet — tap “Add meal” to build your day."}
+          {readOnly ? "No meals set up." : "Create meals like Breakfast, Lunch, Dinner — then add what's in each."}
         </div>
       ) : (
-        <ul className="space-y-2">
-          {dayItems.map((item) => (
-            <li
-              key={item.id}
-              className="flex items-center justify-between rounded-2xl border bg-card px-4 py-3"
-            >
-              <div className="min-w-0">
-                <p className="truncate font-medium">{item.title}</p>
-                <div className="flex gap-3 text-xs text-muted-foreground">
-                  {item.target_time ? (
-                    <span className="flex items-center gap-1">
-                      <Clock className="size-3" />
-                      {formatTime(item.target_time)}
-                    </span>
-                  ) : null}
-                  {item.target_calories != null ? (
-                    <span className="flex items-center gap-1">
-                      <Flame className="size-3" />
-                      {item.target_calories} kcal
-                    </span>
+        <div className="space-y-3">
+          {sortedGroups.map((group) => {
+            const groupItems = itemsFor(group.id);
+            return (
+              <div key={group.id} className="rounded-2xl border bg-card p-3 shadow-soft">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-bold">{group.name}</span>
+                    {group.target_time ? (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="size-3" />
+                        {formatTime(group.target_time)}
+                      </span>
+                    ) : null}
+                  </div>
+                  {!readOnly ? (
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" aria-label="Edit meal" onClick={() => setGroupDraft({ id: group.id, name: group.name, time: group.target_time?.slice(0, 5) ?? "" })}>
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" aria-label="Delete meal" onClick={() => deleteGroup(group)}>
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </div>
                   ) : null}
                 </div>
+
+                {groupItems.length ? (
+                  <ul className="mb-2 space-y-1">
+                    {groupItems.map((item) => (
+                      <li key={item.id} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-1.5">
+                        <span className="min-w-0 truncate text-sm">
+                          {item.title}
+                          {item.target_calories != null ? (
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              <Flame className="mr-0.5 inline size-3" />
+                              {item.target_calories}
+                            </span>
+                          ) : null}
+                        </span>
+                        {!readOnly ? (
+                          <div className="flex shrink-0 gap-1">
+                            <Button variant="ghost" size="icon" className="size-7" aria-label="Edit item" onClick={() => setItemDraft({ id: item.id, groupId: group.id, title: item.title, calories: item.target_calories?.toString() ?? "", note: item.note ?? "" })}>
+                              <Pencil className="size-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="size-7" aria-label="Delete item" onClick={() => deleteItem(item.id)}>
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mb-2 text-xs text-muted-foreground">No items for this day yet.</p>
+                )}
+
+                {!readOnly ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => setItemDraft({ groupId: group.id, title: "", calories: "", note: "" })}>
+                      <Plus className="mr-1 size-3.5" /> Add item
+                    </Button>
+                    <Button variant="ghost" size="sm" className="rounded-full" disabled={busy || groupItems.length === 0} onClick={() => copyItemsToAllDays(group)}>
+                      <Copy className="mr-1 size-3.5" /> Copy to all days
+                    </Button>
+                  </div>
+                ) : null}
               </div>
-              {!readOnly ? (
-                <div className="flex shrink-0 gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Edit"
-                    onClick={() => openEdit(item)}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Delete"
-                    onClick={() => deleteItem(item.id)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+            );
+          })}
+        </div>
       )}
 
-      <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
+      {/* Group dialog */}
+      <Dialog open={groupDraft !== null} onOpenChange={(o) => !o && setGroupDraft(null)}>
         <DialogContent className="max-w-sm rounded-3xl">
           <DialogHeader>
-            <DialogTitle>{editing?.id ? "Edit meal" : "Add meal"}</DialogTitle>
+            <DialogTitle>{groupDraft?.id ? "Edit meal" : "New meal"}</DialogTitle>
           </DialogHeader>
-          {editing ? (
+          {groupDraft ? (
             <div className="space-y-3">
               <label className="block space-y-1.5">
                 <span className="text-sm font-medium">Meal name</span>
-                <Input
-                  autoFocus
-                  value={editing.title}
-                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                  placeholder="e.g. Breakfast, Post-workout shake"
-                />
+                <Input autoFocus value={groupDraft.name} onChange={(e) => setGroupDraft({ ...groupDraft, name: e.target.value })} placeholder="e.g. Breakfast, Post-lunch" />
               </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block space-y-1.5">
-                  <span className="text-sm font-medium">Time</span>
-                  <Input
-                    type="time"
-                    value={editing.target_time}
-                    onChange={(e) =>
-                      setEditing({ ...editing, target_time: e.target.value })
-                    }
-                  />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-sm font-medium">Calories</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    inputMode="numeric"
-                    value={editing.target_calories}
-                    onChange={(e) =>
-                      setEditing({ ...editing, target_calories: e.target.value })
-                    }
-                    placeholder="—"
-                  />
-                </label>
-              </div>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">Time (optional — used for reminders)</span>
+                <Input type="time" value={groupDraft.time} onChange={(e) => setGroupDraft({ ...groupDraft, time: e.target.value })} />
+              </label>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button onClick={saveGroup} disabled={busy} className="w-full rounded-full">
+              {busy ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Item dialog */}
+      <Dialog open={itemDraft !== null} onOpenChange={(o) => !o && setItemDraft(null)}>
+        <DialogContent className="max-w-sm rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>{itemDraft?.id ? "Edit item" : "Add item"}</DialogTitle>
+          </DialogHeader>
+          {itemDraft ? (
+            <div className="space-y-3">
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">Food</span>
+                <Input autoFocus value={itemDraft.title} onChange={(e) => setItemDraft({ ...itemDraft, title: e.target.value })} placeholder="e.g. Poha, 2 eggs" />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">Calories (optional)</span>
+                <Input type="number" min={0} inputMode="numeric" value={itemDraft.calories} onChange={(e) => setItemDraft({ ...itemDraft, calories: e.target.value })} placeholder="—" />
+              </label>
               <label className="block space-y-1.5">
                 <span className="text-sm font-medium">Note (optional)</span>
-                <Input
-                  value={editing.note}
-                  onChange={(e) => setEditing({ ...editing, note: e.target.value })}
-                />
+                <Input value={itemDraft.note} onChange={(e) => setItemDraft({ ...itemDraft, note: e.target.value })} />
               </label>
             </div>
           ) : null}
@@ -375,48 +388,6 @@ export function PlanEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function CopyFromMenu({
-  currentDay,
-  onPick,
-  disabled,
-}: {
-  currentDay: number;
-  onPick: (day: number) => void;
-  disabled: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative">
-      <Button
-        variant="outline"
-        size="sm"
-        className="rounded-full"
-        disabled={disabled}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <Copy className="mr-1 size-4" /> Copy day
-      </Button>
-      {open ? (
-        <div className="absolute z-10 mt-1 w-40 rounded-2xl border bg-popover p-1 shadow-md">
-          {WEEKDAYS.filter((d) => d.index !== currentDay).map((d) => (
-            <button
-              key={d.index}
-              type="button"
-              className="block w-full rounded-xl px-2 py-1.5 text-left text-sm hover:bg-accent"
-              onClick={() => {
-                setOpen(false);
-                onPick(d.index);
-              }}
-            >
-              {d.long}
-            </button>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }

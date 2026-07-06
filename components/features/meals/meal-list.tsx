@@ -7,7 +7,7 @@ import { Camera, Check, Flame, MoreHorizontal, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadPhoto, signedPhotoUrl } from "@/lib/storage";
 import { formatTime } from "@/lib/utils/date";
-import type { MealLog, PlanItem } from "@/lib/types/database.types";
+import type { MealGroup, MealLog, PlanItem } from "@/lib/types/database.types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,11 +29,23 @@ export function MealList({
   dow: number;
 }) {
   const qc = useQueryClient();
-  const planKey = ["plan_items", userId] as const;
   const logKey = ["meal_logs", userId, date] as const;
 
-  const { data: planItems = [] } = useQuery({
-    queryKey: planKey,
+  const { data: groups = [] } = useQuery({
+    queryKey: ["meal_groups", userId],
+    queryFn: async (): Promise<MealGroup[]> => {
+      const { data, error } = await createClient()
+        .from("meal_groups")
+        .select("*")
+        .eq("user_id", userId)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: items = [] } = useQuery({
+    queryKey: ["plan_items", userId],
     queryFn: async (): Promise<PlanItem[]> => {
       const { data, error } = await createClient()
         .from("plan_items")
@@ -59,39 +71,39 @@ export function MealList({
     },
   });
 
-  const todaysPlan = useMemo(
+  const sortedGroups = useMemo(
     () =>
-      planItems
-        .filter((i) => i.day_of_week === dow && i.is_active)
-        .sort((a, b) => {
-          const ta = a.target_time ?? "99:99";
-          const tb = b.target_time ?? "99:99";
-          if (ta !== tb) return ta < tb ? -1 : 1;
-          return a.sort_order - b.sort_order;
-        }),
-    [planItems, dow],
+      [...groups].sort((a, b) => {
+        const ta = a.target_time ?? "99:99";
+        const tb = b.target_time ?? "99:99";
+        if (ta !== tb) return ta < tb ? -1 : 1;
+        return a.sort_order - b.sort_order;
+      }),
+    [groups],
   );
-  const logByItem = useMemo(() => {
+  const logByGroup = useMemo(() => {
     const m = new Map<string, MealLog>();
-    for (const l of logs) if (l.plan_item_id) m.set(l.plan_item_id, l);
+    for (const l of logs) if (l.meal_group_id) m.set(l.meal_group_id, l);
     return m;
   }, [logs]);
-  const adHoc = useMemo(() => logs.filter((l) => !l.plan_item_id), [logs]);
+  const itemsFor = (groupId: string) =>
+    items.filter((i) => i.meal_group_id === groupId && i.day_of_week === dow);
+  const adHoc = useMemo(
+    () => logs.filter((l) => !l.plan_item_id && !l.meal_group_id),
+    [logs],
+  );
 
-  const totalPlanned = todaysPlan.length;
-  const donePlanned = todaysPlan.filter(
-    (i) => logByItem.get(i.id)?.status === "completed",
+  const total = sortedGroups.length;
+  const done = sortedGroups.filter(
+    (g) => logByGroup.get(g.id)?.status === "completed",
   ).length;
 
   const toggle = useMutation({
-    mutationFn: async (item: PlanItem) => {
+    mutationFn: async (group: MealGroup) => {
       const supabase = createClient();
-      const existing = logByItem.get(item.id);
+      const existing = logByGroup.get(group.id);
       if (existing?.status === "completed") {
-        const { error } = await supabase
-          .from("meal_logs")
-          .delete()
-          .eq("id", existing.id);
+        const { error } = await supabase.from("meal_logs").delete().eq("id", existing.id);
         if (error) throw error;
       } else if (existing) {
         const { error } = await supabase
@@ -102,26 +114,24 @@ export function MealList({
       } else {
         const { error } = await supabase.from("meal_logs").insert({
           user_id: userId,
-          plan_item_id: item.id,
+          meal_group_id: group.id,
           log_date: date,
           status: "completed",
         });
         if (error) throw error;
       }
     },
-    onMutate: async (item) => {
+    onMutate: async (group) => {
       await qc.cancelQueries({ queryKey: logKey });
       const prev = qc.getQueryData<MealLog[]>(logKey) ?? [];
-      const existing = prev.find((l) => l.plan_item_id === item.id);
+      const existing = prev.find((l) => l.meal_group_id === group.id);
       let next: MealLog[];
       if (existing?.status === "completed") {
         next = prev.filter((l) => l.id !== existing.id);
       } else if (existing) {
-        next = prev.map((l) =>
-          l.id === existing.id ? { ...l, status: "completed" } : l,
-        );
+        next = prev.map((l) => (l.id === existing.id ? { ...l, status: "completed" } : l));
       } else {
-        next = [...prev, optimisticLog(userId, date, item.id)];
+        next = [...prev, optimisticLog(userId, date, group.id)];
       }
       qc.setQueryData(logKey, next);
       return { prev };
@@ -134,11 +144,8 @@ export function MealList({
   });
 
   const [detail, setDetail] = useState<
-    | { mode: "planned"; item: PlanItem; log?: MealLog }
-    | { mode: "adhoc" }
-    | null
+    { mode: "group"; group: MealGroup; log?: MealLog } | { mode: "adhoc" } | null
   >(null);
-
   const invalidate = () => qc.invalidateQueries({ queryKey: logKey });
 
   return (
@@ -146,23 +153,24 @@ export function MealList({
       <div className="flex items-center justify-between">
         <h2 className="text-base font-bold">Meals</h2>
         <span className="text-sm text-muted-foreground">
-          {donePlanned}/{totalPlanned} done
+          {done}/{total} done
         </span>
       </div>
 
-      {totalPlanned === 0 ? (
+      {total === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No meals planned for today. Add some on the Plan tab.
+          No meals set up yet. Create them on the Plan tab.
         </p>
       ) : (
         <ul className="space-y-2">
-          {todaysPlan.map((item) => {
-            const log = logByItem.get(item.id);
+          {sortedGroups.map((group) => {
+            const log = logByGroup.get(group.id);
             const completed = log?.status === "completed";
             const skipped = log?.status === "skipped";
+            const groupItems = itemsFor(group.id);
             return (
               <li
-                key={item.id}
+                key={group.id}
                 className={cn(
                   "flex items-center gap-3 rounded-2xl border bg-card p-3 transition-colors",
                   completed && "border-primary/40 bg-primary/[0.04]",
@@ -172,7 +180,7 @@ export function MealList({
                 <button
                   type="button"
                   aria-label={completed ? "Mark not done" : "Mark done"}
-                  onClick={() => toggle.mutate(item)}
+                  onClick={() => toggle.mutate(group)}
                   className={cn(
                     "flex size-8 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                     completed
@@ -185,35 +193,31 @@ export function MealList({
                 <button
                   type="button"
                   className="min-w-0 flex-1 text-left"
-                  onClick={() => setDetail({ mode: "planned", item, log })}
+                  onClick={() => setDetail({ mode: "group", group, log })}
                 >
-                  <p
-                    className={cn(
-                      "truncate text-sm font-semibold",
-                      skipped && "line-through",
-                    )}
-                  >
-                    {item.title}
-                  </p>
-                  <div className="flex gap-3 text-xs text-muted-foreground">
-                    {item.target_time ? (
-                      <span>{formatTime(item.target_time)}</span>
-                    ) : null}
-                    {log?.calories != null ? (
-                      <span className="flex items-center gap-0.5">
-                        <Flame className="size-3" />
-                        {log.calories}
+                  <div className="flex items-baseline gap-2">
+                    <p className={cn("truncate text-sm font-semibold", skipped && "line-through")}>
+                      {group.name}
+                    </p>
+                    {group.target_time ? (
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {formatTime(group.target_time)}
                       </span>
                     ) : null}
-                    {log?.photo_path ? <Camera className="size-3" /> : null}
-                    {skipped ? <span>skipped</span> : null}
                   </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {groupItems.length
+                      ? groupItems.map((i) => i.title).join(", ")
+                      : "No items planned"}
+                    {log?.calories != null ? ` · ${log.calories} kcal` : ""}
+                    {log?.photo_path ? " · 📷" : ""}
+                  </p>
                 </button>
                 <Button
                   variant="ghost"
                   size="icon"
                   aria-label="Meal options"
-                  onClick={() => setDetail({ mode: "planned", item, log })}
+                  onClick={() => setDetail({ mode: "group", group, log })}
                 >
                   <MoreHorizontal className="size-4" />
                 </Button>
@@ -223,22 +227,17 @@ export function MealList({
         </ul>
       )}
 
-      {/* Ad-hoc meals (0 points, record-only) */}
+      {/* Ad-hoc meals (0 points) */}
       <div className="space-y-2">
         {adHoc.length > 0 ? (
           <ul className="space-y-2">
             {adHoc.map((log) => (
-              <li
-                key={log.id}
-                className="flex items-center gap-3 rounded-xl border border-dashed bg-card/50 p-3"
-              >
+              <li key={log.id} className="flex items-center gap-3 rounded-2xl border border-dashed bg-card/50 p-3">
                 <span className="flex size-7 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">
                   +
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {log.note || "Unplanned meal"}
-                  </p>
+                  <p className="truncate text-sm font-medium">{log.note || "Unplanned meal"}</p>
                   <div className="flex gap-3 text-xs text-muted-foreground">
                     {log.calories != null ? (
                       <span className="flex items-center gap-0.5">
@@ -253,10 +252,7 @@ export function MealList({
                   variant="ghost"
                   size="sm"
                   onClick={async () => {
-                    await createClient()
-                      .from("meal_logs")
-                      .delete()
-                      .eq("id", log.id);
+                    await createClient().from("meal_logs").delete().eq("id", log.id);
                     invalidate();
                   }}
                 >
@@ -266,12 +262,7 @@ export function MealList({
             ))}
           </ul>
         ) : null}
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={() => setDetail({ mode: "adhoc" })}
-        >
+        <Button variant="outline" size="sm" className="w-full" onClick={() => setDetail({ mode: "adhoc" })}>
           <Plus className="mr-1 size-4" /> Add unplanned meal
         </Button>
       </div>
@@ -282,7 +273,7 @@ export function MealList({
             ? "none"
             : detail.mode === "adhoc"
               ? "adhoc"
-              : `planned-${detail.item.id}`
+              : `group-${detail.group.id}`
         }
         state={detail}
         userId={userId}
@@ -297,18 +288,15 @@ export function MealList({
   );
 }
 
-function optimisticLog(
-  userId: string,
-  date: string,
-  planItemId: string,
-): MealLog {
+function optimisticLog(userId: string, date: string, groupId: string): MealLog {
   const now = new Date().toISOString();
   return {
-    id: `optimistic-${planItemId}`,
+    id: `optimistic-${groupId}`,
     created_at: now,
     updated_at: now,
     user_id: userId,
-    plan_item_id: planItemId,
+    plan_item_id: null,
+    meal_group_id: groupId,
     log_date: date,
     logged_at: now,
     status: "completed",
@@ -319,7 +307,7 @@ function optimisticLog(
 }
 
 type DialogState =
-  | { mode: "planned"; item: PlanItem; log?: MealLog }
+  | { mode: "group"; group: MealGroup; log?: MealLog }
   | { mode: "adhoc" }
   | null;
 
@@ -337,37 +325,33 @@ function MealDialog({
   onSaved: () => void;
 }) {
   const open = state !== null;
-  const planned = state?.mode === "planned" ? state : null;
-  const log = planned?.log;
+  const grouped = state?.mode === "group" ? state : null;
+  const log = grouped?.log;
 
-  // Fresh mount per target (see `key` at the call site), so initialize directly.
   const [calories, setCalories] = useState(log?.calories?.toString() ?? "");
   const [note, setNote] = useState(log?.note ?? "");
   const [busy, setBusy] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [adHocPhotoPath, setPhotoPath] = useState<string | null>(null);
+  const [adHocPhotoPath, setAdHocPhotoPath] = useState<string | null>(null);
 
-  // Async: resolve a signed URL for an existing photo.
   useEffect(() => {
     const path = log?.photo_path;
     if (!path) return;
     let active = true;
-    signedPhotoUrl(path).then((u) => {
-      if (active) setPhotoUrl(u);
-    });
+    signedPhotoUrl(path).then((u) => active && setPhotoUrl(u));
     return () => {
       active = false;
     };
   }, [log?.photo_path]);
 
-  async function ensurePlannedLogId(): Promise<string | null> {
-    if (!planned) return null;
+  async function ensureGroupLogId(): Promise<string | null> {
+    if (!grouped) return null;
     if (log) return log.id;
     const { data, error } = await createClient()
       .from("meal_logs")
       .insert({
         user_id: userId,
-        plan_item_id: planned.item.id,
+        meal_group_id: grouped.group.id,
         log_date: date,
         status: "completed",
       })
@@ -378,7 +362,7 @@ function MealDialog({
   }
 
   async function setStatus(status: "completed" | "skipped") {
-    if (!planned) return;
+    if (!grouped) return;
     setBusy(true);
     try {
       const supabase = createClient();
@@ -387,7 +371,7 @@ function MealDialog({
       } else {
         await supabase.from("meal_logs").insert({
           user_id: userId,
-          plan_item_id: planned.item.id,
+          meal_group_id: grouped.group.id,
           log_date: date,
           status,
         });
@@ -407,12 +391,11 @@ function MealDialog({
     try {
       const path = await uploadPhoto(userId, date, file);
       const supabase = createClient();
-      if (planned) {
-        const id = await ensurePlannedLogId();
+      if (grouped) {
+        const id = await ensureGroupLogId();
         if (id) await supabase.from("meal_logs").update({ photo_path: path }).eq("id", id);
       } else {
-        // ad-hoc: keep the path locally until save inserts the row
-        setPhotoPath(path);
+        setAdHocPhotoPath(path);
       }
       setPhotoUrl(await signedPhotoUrl(path));
       toast.success("Photo added.");
@@ -428,8 +411,8 @@ function MealDialog({
     try {
       const supabase = createClient();
       const cals = calories ? Number(calories) : null;
-      if (planned) {
-        const id = await ensurePlannedLogId();
+      if (grouped) {
+        const id = await ensureGroupLogId();
         if (id) {
           await supabase
             .from("meal_logs")
@@ -440,6 +423,7 @@ function MealDialog({
         await supabase.from("meal_logs").insert({
           user_id: userId,
           plan_item_id: null,
+          meal_group_id: null,
           log_date: date,
           status: "completed",
           calories: cals,
@@ -457,15 +441,13 @@ function MealDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm rounded-3xl">
         <DialogHeader>
-          <DialogTitle>
-            {planned ? planned.item.title : "Unplanned meal"}
-          </DialogTitle>
+          <DialogTitle>{grouped ? grouped.group.name : "Unplanned meal"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
-          {planned ? (
+          {grouped ? (
             <div className="flex gap-2">
               <Button
                 variant={log?.status === "completed" ? "default" : "outline"}
@@ -488,50 +470,27 @@ function MealDialog({
             </div>
           ) : null}
 
-          {!planned ? (
+          {!grouped ? (
             <label className="block space-y-1.5">
               <span className="text-sm font-medium">What did you have?</span>
-              <Input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="e.g. Handful of nuts"
-                autoFocus
-              />
+              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Handful of nuts" autoFocus />
             </label>
           ) : null}
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Calories (optional)</span>
-            <Input
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={calories}
-              onChange={(e) => setCalories(e.target.value)}
-              placeholder="—"
-            />
+            <Input type="number" min={0} inputMode="numeric" value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="—" />
           </label>
 
           {photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={photoUrl}
-              alt="Meal"
-              className="h-32 w-full rounded-lg object-cover"
-            />
+            <img src={photoUrl} alt="Meal" className="h-32 w-full rounded-lg object-cover" />
           ) : null}
 
           <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed py-2 text-sm text-muted-foreground">
             <Camera className="size-4" />
             {photoUrl ? "Replace photo" : "Add photo"}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handlePhoto}
-              disabled={busy}
-            />
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} disabled={busy} />
           </label>
         </div>
 

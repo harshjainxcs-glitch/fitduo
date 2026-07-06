@@ -21,5 +21,5 @@ export default async function WeeklyPage() {
     );
   }
 
-  return <WeeklyView profiles={profiles} />;
+  return <WeeklyView profiles={profiles} currentUserId={user.id} />;
 }

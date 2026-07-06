@@ -1,6 +1,7 @@
 import { computeDailyScore, type ScoreResult } from "@/lib/scoring/scoring";
 import { dayOfWeekIST } from "@/lib/utils/date";
 import type {
+  MealGroup,
   MealLog,
   PlanItem,
   Profile,
@@ -25,26 +26,30 @@ export interface DailyDerived {
 export function deriveDaily(params: {
   profile: Profile;
   date: string;
-  planItems: PlanItem[];
+  mealGroups: MealGroup[]; // meals apply to every day
+  planItems: PlanItem[]; // food items (for planned calories)
   mealLogs: MealLog[]; // today's meal logs
   waterLogs: WaterLog[]; // today's water logs
   workoutLogs: WorkoutLog[]; // may span the week; filtered by date here
 }): DailyDerived {
-  const { profile, date, planItems, mealLogs, waterLogs, workoutLogs } = params;
+  const { profile, date, mealGroups, planItems, mealLogs, waterLogs, workoutLogs } = params;
   const dow = dayOfWeekIST(date);
 
-  const todaysPlan = planItems.filter(
-    (i) => i.day_of_week === dow && i.is_active,
-  );
-  const plannedMeals = todaysPlan.length;
-  const completedMeals = mealLogs.filter(
-    (l) => l.plan_item_id && l.status === "completed",
-  ).length;
+  const plannedMeals = mealGroups.length;
+  const completedMeals = new Set(
+    mealLogs
+      .filter((l) => l.meal_group_id && l.status === "completed")
+      .map((l) => l.meal_group_id),
+  ).size;
+
   const waterLoggedMl = waterLogs.reduce((s, l) => s + l.amount_ml, 0);
   const isWorkoutDay = (profile.workout_days ?? []).includes(dow);
   const workoutLogged = workoutLogs.some((l) => l.log_date === date);
 
-  const plannedCalories = todaysPlan.reduce(
+  const todaysItems = planItems.filter(
+    (i) => i.day_of_week === dow && i.is_active,
+  );
+  const plannedCalories = todaysItems.reduce(
     (s, i) => s + (i.target_calories ?? 0),
     0,
   );

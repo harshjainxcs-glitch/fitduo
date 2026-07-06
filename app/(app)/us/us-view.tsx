@@ -8,6 +8,7 @@ import { currentStreak } from "@/lib/streaks";
 import { signedPhotoUrl } from "@/lib/storage";
 import { todayIST, weekStartIST, weekDatesIST, dayOfWeekIST } from "@/lib/utils/date";
 import type {
+  MealGroup,
   MealLog,
   PlanItem,
   Profile,
@@ -93,7 +94,7 @@ export function UsView({
       {/* Shared moments feed */}
       <div className="space-y-3">
         <h2 className="text-base font-bold">Shared moments</h2>
-        <Feed profiles={profiles} />
+        <Feed profiles={profiles} currentUserId={currentUserId} />
       </div>
     </div>
   );
@@ -113,6 +114,17 @@ function PartnerColumn({
   const supabase = createClient();
   const uid = profile.id;
 
+  const { data: mealGroups = [] } = useQuery({
+    queryKey: ["meal_groups", uid],
+    queryFn: async (): Promise<MealGroup[]> => {
+      const { data, error } = await supabase
+        .from("meal_groups")
+        .select("*")
+        .eq("user_id", uid);
+      if (error) throw error;
+      return data;
+    },
+  });
   const { data: planItems = [] } = useQuery({
     queryKey: ["plan_items", uid],
     queryFn: async (): Promise<PlanItem[]> => {
@@ -206,6 +218,7 @@ function PartnerColumn({
   const d = deriveDaily({
     profile,
     date,
+    mealGroups,
     planItems,
     mealLogs,
     waterLogs,

@@ -3,18 +3,25 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Trophy } from "lucide-react";
+import { Camera, Trophy } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { uploadPhoto, signedPhotoUrl } from "@/lib/storage";
 import { formatDisplayDate, todayIST, weekStartIST, dayOfWeekIST } from "@/lib/utils/date";
 import type { WeeklyResult } from "@/lib/types/database.types";
+import { Confetti } from "@/components/features/motivation/confetti";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type MiniProfile = { id: string; display_name: string };
 
-export function WeeklyView({ profiles }: { profiles: MiniProfile[] }) {
+export function WeeklyView({
+  profiles,
+  currentUserId,
+}: {
+  profiles: MiniProfile[];
+  currentUserId: string;
+}) {
   const qc = useQueryClient();
   const supabase = createClient();
   const date = todayIST();
@@ -105,19 +112,43 @@ export function WeeklyView({ profiles }: { profiles: MiniProfile[] }) {
     }
   }
 
-  async function togglePaid(week: string, paid: boolean) {
-    const { error } = await supabase
-      .from("weekly_results")
-      .update({ prize_paid: paid })
-      .eq("week_start", week);
-    if (error) toast.error("Couldn't update.");
-    else qc.invalidateQueries({ queryKey: ["weekly_results"] });
+  async function uploadProof(week: string, file: File) {
+    try {
+      const path = await uploadPhoto(currentUserId, todayIST(), file);
+      const { error } = await supabase
+        .from("weekly_results")
+        .update({ prize_photo_path: path, prize_paid: true })
+        .eq("week_start", week);
+      if (error) throw error;
+      toast.success("Prize logged 🎁");
+      qc.invalidateQueries({ queryKey: ["weekly_results"] });
+    } catch {
+      toast.error("Couldn't upload the proof photo.");
+    }
   }
 
   const history = results.filter((r) => r.week_start < currentWeek);
+  const latest = history[0];
+  const iWon = Boolean(latest && latest.winner_id === currentUserId);
 
   return (
     <div className="space-y-6 px-4 py-2">
+      {/* Winner celebration */}
+      {iWon && latest ? (
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-forest-2 to-forest p-5 text-center text-cream shadow-soft">
+          <Confetti />
+          <p className="text-3xl">🏆</p>
+          <p className="mt-1 text-lg font-extrabold">You won last week!</p>
+          <p className="text-sm text-cream/80">
+            {latest.prize
+              ? latest.prize_photo_path
+                ? "Prize collected 💛"
+                : `Claim your prize: ${latest.prize}`
+              : "Champion of the week."}
+          </p>
+        </div>
+      ) : null}
+
       {/* Current week */}
       <Card>
         <CardHeader>
@@ -160,15 +191,9 @@ export function WeeklyView({ profiles }: { profiles: MiniProfile[] }) {
             />
             <Button onClick={savePrize}>Save</Button>
           </div>
-          {currentResult ? (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Marked paid</span>
-              <Switch
-                checked={currentResult.prize_paid}
-                onCheckedChange={(v) => togglePaid(currentWeek, v)}
-              />
-            </div>
-          ) : null}
+          <p className="text-xs text-muted-foreground">
+            When the week ends, the winner claims it — log a photo as proof.
+          </p>
         </CardContent>
       </Card>
 
@@ -208,16 +233,7 @@ export function WeeklyView({ profiles }: { profiles: MiniProfile[] }) {
                   </span>
                 </div>
                 {r.prize ? (
-                  <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2 text-sm">
-                    <span>🎁 {r.prize}</span>
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      Paid
-                      <Switch
-                        checked={r.prize_paid}
-                        onCheckedChange={(v) => togglePaid(r.week_start, v)}
-                      />
-                    </label>
-                  </div>
+                  <PrizeBlock result={r} onUpload={(f) => uploadProof(r.week_start, f)} />
                 ) : null}
               </CardContent>
             </Card>
@@ -244,6 +260,50 @@ function Side({
       </span>
       <span className="text-3xl font-bold tabular-nums">{points}</span>
       {lead ? <Trophy className="size-4 text-amber-500" /> : null}
+    </div>
+  );
+}
+
+function PrizeBlock({
+  result,
+  onUpload,
+}: {
+  result: WeeklyResult;
+  onUpload: (file: File) => void;
+}) {
+  const { data: url } = useQuery({
+    queryKey: ["prize_photo", result.prize_photo_path],
+    enabled: Boolean(result.prize_photo_path),
+    queryFn: async () =>
+      result.prize_photo_path ? signedPhotoUrl(result.prize_photo_path) : null,
+  });
+
+  return (
+    <div className="rounded-xl bg-muted px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate">🎁 {result.prize}</span>
+        {result.prize_photo_path ? (
+          <span className="shrink-0 text-xs font-semibold text-primary">Given ✓</span>
+        ) : (
+          <label className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs font-medium text-amber-600">
+            <Camera className="size-3" /> Due — log photo
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onUpload(f);
+              }}
+            />
+          </label>
+        )}
+      </div>
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="Prize proof" className="mt-2 h-36 w-full rounded-lg object-cover" />
+      ) : null}
     </div>
   );
 }

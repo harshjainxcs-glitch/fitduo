@@ -112,15 +112,13 @@ export async function GET(req: Request) {
       }
     }
 
-    // --- Meals (planned, past target time, not yet logged) ---
+    // --- Meals (meal group past its time, not yet logged) ---
     if (prefs.meals && !quietNow) {
-      // No diet plan at all? Nudge to set one up (morning, once/day).
-      const { count: planCount } = await admin
-        .from("plan_items")
+      const { count: groupCount } = await admin
+        .from("meal_groups")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", profile.id)
-        .eq("is_active", true);
-      if ((planCount ?? 0) === 0) {
+        .eq("user_id", profile.id);
+      if ((groupCount ?? 0) === 0) {
         if (hour >= 8 && hour <= 11) {
           await fire(profile.id, "meal", `noplan:${date}`, {
             title: "Set up your meals 🍽️",
@@ -130,30 +128,27 @@ export async function GET(req: Request) {
           });
         }
       } else {
-        const { data: planned } = await admin
-          .from("plan_items")
-          .select("*")
+        const { data: mealGroups } = await admin
+          .from("meal_groups")
+          .select("id,name,target_time")
           .eq("user_id", profile.id)
-          .eq("day_of_week", dow)
-          .eq("is_active", true)
           .not("target_time", "is", null);
         const { data: logs } = await admin
           .from("meal_logs")
-          .select("plan_item_id")
+          .select("meal_group_id")
           .eq("user_id", profile.id)
           .eq("log_date", date);
-        const loggedItems = new Set(
-          (logs ?? []).map((l) => l.plan_item_id).filter(Boolean),
+        const loggedGroups = new Set(
+          (logs ?? []).map((l) => l.meal_group_id).filter(Boolean),
         );
-        for (const item of planned ?? []) {
-          if (loggedItems.has(item.id)) continue;
-          if (!item.target_time || !mealReminderDue(item.target_time, nowMin))
-            continue;
-          await fire(profile.id, "meal", `meal:${item.id}:${date}`, {
+        for (const g of mealGroups ?? []) {
+          if (loggedGroups.has(g.id)) continue;
+          if (!g.target_time || !mealReminderDue(g.target_time, nowMin)) continue;
+          await fire(profile.id, "meal", `meal:${g.id}:${date}`, {
             title: "Meal reminder 🍽️",
-            body: `Time for ${item.title} — tap to log it.`,
+            body: `Time for ${g.name} — tap to log it.`,
             url: "/today",
-            tag: `meal-${item.id}`,
+            tag: `meal-${g.id}`,
           });
         }
       }

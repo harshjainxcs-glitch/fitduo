@@ -12,6 +12,7 @@ const TABLES = [
   "water_logs",
   "workout_logs",
   "weekly_results",
+  "calendar_tasks",
 ] as const;
 
 export function RealtimeSync() {

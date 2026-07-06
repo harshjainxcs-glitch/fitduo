@@ -4,6 +4,7 @@ import { sendPush, type PushPayload } from "@/lib/push/webpush";
 import { resolveNotifPrefs } from "@/lib/constants";
 import {
   dayOfWeekIST,
+  formatTime,
   hourIST,
   minutesOfDayIST,
   todayIST,
@@ -15,6 +16,7 @@ import {
   toMinutes,
   waterReminderDue,
 } from "@/lib/reminders";
+import { occursOn, timeToMinutes } from "@/lib/calendar";
 import type { Profile } from "@/lib/types/database.types";
 
 export const runtime = "nodejs";
@@ -95,9 +97,15 @@ export async function GET(req: Request) {
       });
       if (due) {
         const remaining = Math.max(0, profile.water_target_ml - logged);
+        const pct = Math.min(
+          100,
+          Math.round((logged / profile.water_target_ml) * 100),
+        );
+        const filled = Math.round(pct / 10);
+        const bar = "▓".repeat(filled) + "░".repeat(10 - filled);
         await fire(profile.id, "water", `${date}:w${slot}`, {
-          title: "Time to hydrate 💧",
-          body: `${remaining} ml to go today — grab a bottle.`,
+          title: `Hydration ${pct}% 💧`,
+          body: `${bar}  ${remaining} ml to go — grab a bottle!`,
           url: "/today",
           tag: "water",
         });
@@ -106,30 +114,48 @@ export async function GET(req: Request) {
 
     // --- Meals (planned, past target time, not yet logged) ---
     if (prefs.meals && !quietNow) {
-      const { data: planned } = await admin
+      // No diet plan at all? Nudge to set one up (morning, once/day).
+      const { count: planCount } = await admin
         .from("plan_items")
-        .select("*")
+        .select("id", { count: "exact", head: true })
         .eq("user_id", profile.id)
-        .eq("day_of_week", dow)
-        .eq("is_active", true)
-        .not("target_time", "is", null);
-      const { data: logs } = await admin
-        .from("meal_logs")
-        .select("plan_item_id")
-        .eq("user_id", profile.id)
-        .eq("log_date", date);
-      const loggedItems = new Set(
-        (logs ?? []).map((l) => l.plan_item_id).filter(Boolean),
-      );
-      for (const item of planned ?? []) {
-        if (loggedItems.has(item.id)) continue;
-        if (!item.target_time || !mealReminderDue(item.target_time, nowMin)) continue;
-        await fire(profile.id, "meal", `meal:${item.id}:${date}`, {
-          title: "Meal reminder 🍽️",
-          body: `Time for ${item.title} — tap to log it.`,
-          url: "/today",
-          tag: `meal-${item.id}`,
-        });
+        .eq("is_active", true);
+      if ((planCount ?? 0) === 0) {
+        if (hour >= 8 && hour <= 11) {
+          await fire(profile.id, "meal", `noplan:${date}`, {
+            title: "Set up your meals 🍽️",
+            body: "Add your diet plan to start earning points.",
+            url: "/plan",
+            tag: "noplan",
+          });
+        }
+      } else {
+        const { data: planned } = await admin
+          .from("plan_items")
+          .select("*")
+          .eq("user_id", profile.id)
+          .eq("day_of_week", dow)
+          .eq("is_active", true)
+          .not("target_time", "is", null);
+        const { data: logs } = await admin
+          .from("meal_logs")
+          .select("plan_item_id")
+          .eq("user_id", profile.id)
+          .eq("log_date", date);
+        const loggedItems = new Set(
+          (logs ?? []).map((l) => l.plan_item_id).filter(Boolean),
+        );
+        for (const item of planned ?? []) {
+          if (loggedItems.has(item.id)) continue;
+          if (!item.target_time || !mealReminderDue(item.target_time, nowMin))
+            continue;
+          await fire(profile.id, "meal", `meal:${item.id}:${date}`, {
+            title: "Meal reminder 🍽️",
+            body: `Time for ${item.title} — tap to log it.`,
+            url: "/today",
+            tag: `meal-${item.id}`,
+          });
+        }
       }
     }
 
@@ -184,6 +210,31 @@ export async function GET(req: Request) {
           body: `You ${mine} vs ${theirs}. ${verdict}`,
           url: "/weekly",
           tag: "weekly",
+        });
+      }
+    }
+
+    // --- Calendar task reminders (opt-in per task) ---
+    if (prefs.tasks && !quietNow) {
+      const { data: taskRows } = await admin
+        .from("calendar_tasks")
+        .select("*")
+        .eq("owner_id", profile.id)
+        .eq("remind", true)
+        .eq("done", false);
+      for (const t of taskRows ?? []) {
+        if (t.all_day || !t.start_time) continue;
+        if (!occursOn(t, date)) continue;
+        const startMin = timeToMinutes(t.start_time);
+        if (startMin == null) continue;
+        const dueAt = startMin - (t.remind_lead_min ?? 0);
+        // Fire once the (lead-adjusted) start time has passed, within a 3h window.
+        if (nowMin < dueAt || nowMin - dueAt > 180) continue;
+        await fire(profile.id, "task", `task:${t.id}:${date}`, {
+          title: `Time for ${t.title} 🔔`,
+          body: t.note || `Scheduled at ${formatTime(t.start_time)}.`,
+          url: "/calendar",
+          tag: `task-${t.id}`,
         });
       }
     }

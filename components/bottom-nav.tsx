@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
+  CalendarRange,
   Home,
   LineChart,
-  Menu,
   Settings,
   Trophy,
   Users,
+  Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -24,12 +25,13 @@ import {
 
 const TABS = [
   { href: "/today", label: "Today", icon: Home },
+  { href: "/calendar", label: "Calendar", icon: CalendarRange },
   { href: "/plan", label: "Plan", icon: CalendarDays },
   { href: "/us", label: "Feed", icon: Users },
-  { href: "/weekly", label: "Weekly", icon: Trophy },
 ] as const;
 
 const MORE_LINKS = [
+  { href: "/weekly", label: "Weekly", icon: Trophy },
   { href: "/history", label: "History", icon: LineChart },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;

@@ -26,6 +26,7 @@ export type NotifPrefs = {
   meals?: boolean;
   partner?: boolean;
   weekly?: boolean;
+  tasks?: boolean;
   quiet_hours?: { start: string; end: string };
   water_interval_min?: number;
 };
@@ -351,6 +352,63 @@ export type Database = {
         };
         Relationships: [];
       };
+      calendar_tasks: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          owner_id: string;
+          created_by: string;
+          title: string;
+          note: string | null;
+          task_date: string;
+          start_time: string | null;
+          end_time: string | null;
+          all_day: boolean;
+          tags: string[];
+          recurrence: string;
+          remind: boolean;
+          remind_lead_min: number;
+          done: boolean;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          owner_id: string;
+          created_by: string;
+          title: string;
+          note?: string | null;
+          task_date: string;
+          start_time?: string | null;
+          end_time?: string | null;
+          all_day?: boolean;
+          tags?: string[];
+          recurrence?: string;
+          remind?: boolean;
+          remind_lead_min?: number;
+          done?: boolean;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          owner_id?: string;
+          created_by?: string;
+          title?: string;
+          note?: string | null;
+          task_date?: string;
+          start_time?: string | null;
+          end_time?: string | null;
+          all_day?: boolean;
+          tags?: string[];
+          recurrence?: string;
+          remind?: boolean;
+          remind_lead_min?: number;
+          done?: boolean;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       daily_scores: {
@@ -407,5 +465,6 @@ export type WorkoutLog = Tables<"workout_logs">;
 export type PushSubscriptionRow = Tables<"push_subscriptions">;
 export type WeeklyResult = Tables<"weekly_results">;
 export type Achievement = Tables<"achievements">;
+export type CalendarTask = Tables<"calendar_tasks">;
 export type DailyScore = Views<"daily_scores">;
 export type WeeklyScore = Views<"weekly_scores">;

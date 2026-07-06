@@ -294,6 +294,7 @@ export function SettingsForm({
             [
               ["water", "Water reminders"],
               ["meals", "Meal reminders"],
+              ["tasks", "Task reminders"],
               ["partner", "Partner activity"],
               ["weekly", "Weekly standings"],
             ] as const

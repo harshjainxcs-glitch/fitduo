@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -40,6 +41,8 @@ export function CalendarView({
   today: string;
 }) {
   const qc = useQueryClient();
+  const params = useSearchParams();
+  const focusTask = params.get("task");
   const [view, setView] = useState<View>("day");
   const [selected, setSelected] = useState(today);
   const [whose, setWhose] = useState<"you" | "partner">("you");
@@ -64,6 +67,27 @@ export function CalendarView({
       return data;
     },
   });
+
+  // Deep-link from a notification (?task=id): open that task's quick sheet.
+  useEffect(() => {
+    if (!focusTask) return;
+    let cancelled = false;
+    createClient()
+      .from("calendar_tasks")
+      .select("*")
+      .eq("id", focusTask)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setWhose(data.owner_id === userId ? "you" : "partner");
+        setSelected(data.task_date);
+        setView("day");
+        setQuickTask(data);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [focusTask, userId]);
 
   const closeDialog = () => {
     setEditingTask(null);

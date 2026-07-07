@@ -82,9 +82,9 @@ export function TaskDialog({
       done: task?.done ?? false,
       ...overrides,
     };
-    const { error } = task
-      ? await supabase.from("calendar_tasks").update(payload).eq("id", task.id)
-      : await supabase.from("calendar_tasks").insert({ ...payload, created_by: userId });
+    const { data: saved, error } = task
+      ? await supabase.from("calendar_tasks").update(payload).eq("id", task.id).select("id").single()
+      : await supabase.from("calendar_tasks").insert({ ...payload, created_by: userId }).select("id").single();
     setBusy(false);
     if (error) {
       toast.error("Couldn't save the task.");
@@ -98,7 +98,7 @@ export function TaskDialog({
             ? `${meName} added a task to your calendar`
             : `${meName} added a task`,
         body: payload.title,
-        url: "/calendar",
+        url: saved ? `/calendar?task=${saved.id}` : "/calendar",
       });
     }
     onSaved();
@@ -118,7 +118,7 @@ export function TaskDialog({
       kind: "task_remind",
       title: `${meName} nudged you 🔔`,
       body: task?.title,
-      url: "/calendar",
+      url: task ? `/calendar?task=${task.id}` : "/calendar",
     });
     toast.success("Nudge sent.");
   }

@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { uploadPhoto, signedPhotoUrl } from "@/lib/storage";
 import { notifyPartner } from "@/lib/actions/notify";
 import { todayIST } from "@/lib/utils/date";
-import type { Profile, Story } from "@/lib/types/database.types";
+import type { Profile, Story, StoryReply } from "@/lib/types/database.types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -439,6 +439,21 @@ function StoryViewer({
       .then(() => qc.invalidateQueries({ queryKey: ["story_views", currentUserId] }));
   }, [storyId, currentUserId, qc]);
 
+  // Persisted reply thread for the current story (inline chat, no new page).
+  const { data: replies = [] } = useQuery({
+    queryKey: ["story_replies", storyId],
+    enabled: Boolean(storyId),
+    queryFn: async (): Promise<StoryReply[]> => {
+      const { data, error } = await createClient()
+        .from("story_replies")
+        .select("*")
+        .eq("story_id", storyId as string)
+        .order("created_at");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   if (!current) return null;
   const { group, story } = current;
   const isMine = group.user.id === currentUserId;
@@ -453,17 +468,27 @@ function StoryViewer({
     onClose();
   }
 
-  function sendReply(text: string) {
+  async function sendReply(text: string) {
     const body = text.trim();
-    if (!body) return;
+    if (!body || !storyId) return;
     setReply("");
-    void notifyPartner({
-      kind: "story_reply",
-      title: `${myName} replied to your story`,
-      body,
-      url: "/us",
-    });
-    toast.success("Sent 💬");
+    const { error } = await createClient()
+      .from("story_replies")
+      .insert({ story_id: storyId, user_id: currentUserId, body });
+    if (error) {
+      toast.error("Couldn't send");
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["story_replies", storyId] });
+    // Only ping the partner when the reply is on their story (not your own).
+    if (!isMine) {
+      void notifyPartner({
+        kind: "story_reply",
+        title: `${myName} replied to your story`,
+        body,
+        url: "/us",
+      });
+    }
   }
 
   return (
@@ -535,33 +560,60 @@ function StoryViewer({
         />
       </div>
 
-      {/* Reply bar (not on your own story) */}
-      {!isMine ? (
-        <div className="flex items-center gap-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+      {/* Inline chat thread — replies + reply-to-reply, no new page. */}
+      <div className="bg-gradient-to-t from-black/80 to-transparent px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+        {replies.length > 0 ? (
+          <div className="mb-2 max-h-[34vh] space-y-1.5 overflow-y-auto px-1">
+            {replies.map((r) => {
+              const mine = r.user_id === currentUserId;
+              return (
+                <div key={r.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
+                  <span
+                    className={cn(
+                      "max-w-[80%] break-words rounded-2xl px-3.5 py-2 text-sm leading-snug",
+                      mine
+                        ? "rounded-br-md bg-primary text-primary-foreground"
+                        : "rounded-bl-md bg-white/15 text-white backdrop-blur-sm",
+                    )}
+                  >
+                    {r.body}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        <div className="flex items-center gap-2">
           <input
             value={reply}
             onChange={(e) => setReply(e.target.value)}
             onFocus={() => setPaused(true)}
             onBlur={() => setPaused(false)}
             onKeyDown={(e) => e.key === "Enter" && sendReply(reply)}
-            placeholder={`Reply to ${firstName(group.user)}…`}
-            className="h-11 flex-1 rounded-full border border-white/40 bg-transparent px-4 text-sm text-white placeholder:text-white/60 focus:outline-none"
+            placeholder={isMine ? "Add to the thread…" : `Reply to ${firstName(group.user)}…`}
+            className="h-11 flex-1 rounded-full border border-white/40 bg-black/30 px-4 text-sm text-white placeholder:text-white/60 focus:border-white/70 focus:outline-none"
           />
-          <button
-            type="button"
-            aria-label="Send love"
-            onClick={() => sendReply("❤️")}
-            className="text-2xl"
-          >
-            ❤️
-          </button>
           {reply.trim() ? (
-            <button type="button" aria-label="Send reply" onClick={() => sendReply(reply)} className="text-white">
-              <Send className="size-6" />
+            <button
+              type="button"
+              aria-label="Send reply"
+              onClick={() => sendReply(reply)}
+              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+            >
+              <Send className="size-5" />
             </button>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              aria-label="Send love"
+              onClick={() => sendReply("❤️")}
+              className="flex size-11 shrink-0 items-center justify-center text-2xl"
+            >
+              ❤️
+            </button>
+          )}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }

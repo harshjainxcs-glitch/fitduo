@@ -75,7 +75,7 @@ export function TaskQuickSheet({
       kind: "task_update",
       title: `${meName} · ${task.title}`,
       body: `Marked ${STATUS_LABEL[status] ?? status}`,
-      url: "/calendar",
+      url: `/calendar?task=${task.id}`,
     });
     onClose();
   }
@@ -96,7 +96,7 @@ export function TaskQuickSheet({
       kind: "task_update",
       title: `${meName} · ${task.title}`,
       body: "Moved to tomorrow",
-      url: "/calendar",
+      url: `/calendar?task=${task.id}`,
     });
     onClose();
   }

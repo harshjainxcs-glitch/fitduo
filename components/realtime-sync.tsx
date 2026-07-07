@@ -19,6 +19,7 @@ const TABLES = [
   "meal_groups",
   "stories",
   "story_views",
+  "story_replies",
   "activities",
   "task_comments",
 ] as const;

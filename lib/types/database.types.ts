@@ -551,6 +551,30 @@ export type Database = {
         Update: { story_id?: string; user_id?: string; created_at?: string };
         Relationships: [];
       };
+      story_replies: {
+        Row: {
+          id: string;
+          created_at: string;
+          story_id: string;
+          user_id: string;
+          body: string;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          story_id: string;
+          user_id: string;
+          body: string;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          story_id?: string;
+          user_id?: string;
+          body?: string;
+        };
+        Relationships: [];
+      };
       calendar_tasks: {
         Row: {
           id: string;
@@ -672,6 +696,7 @@ export type CalendarTask = Tables<"calendar_tasks">;
 export type Activity = Tables<"activities">;
 export type TaskComment = Tables<"task_comments">;
 export type StoryView = Tables<"story_views">;
+export type StoryReply = Tables<"story_replies">;
 export type Story = Tables<"stories">;
 export type Post = Tables<"posts">;
 export type PostLike = Tables<"post_likes">;

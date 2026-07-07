@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Heart, ImagePlus, MessageCircle, Send, Trash2 } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, Heart, Image as ImageIcon, ImagePlus, MessageCircle, Send, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadPhoto, signedPhotoUrl } from "@/lib/storage";
 import { notifyPartner } from "@/lib/actions/notify";
@@ -37,6 +38,8 @@ export function Feed({
   currentUserId: string;
 }) {
   const qc = useQueryClient();
+  const params = useSearchParams();
+  const focusPost = params.get("post");
   const [weekStart, setWeekStart] = useState(weekStartIST(todayIST()));
   const [composeOpen, setComposeOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -94,6 +97,30 @@ export function Feed({
     },
   });
 
+  // Deep-link from a notification (?post=id): jump to that post's week…
+  useEffect(() => {
+    if (!focusPost) return;
+    let cancelled = false;
+    createClient()
+      .from("posts")
+      .select("post_date")
+      .eq("id", focusPost)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) setWeekStart(weekStartIST(data.post_date));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [focusPost]);
+
+  // …then scroll to it once the week's posts are loaded.
+  useEffect(() => {
+    if (!focusPost) return;
+    const el = document.getElementById(`post-${focusPost}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusPost, posts]);
+
   const toggleLike = useMutation({
     mutationFn: async (postId: string) => {
       const supabase = createClient();
@@ -102,7 +129,7 @@ export function Feed({
         await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
       } else {
         await supabase.from("post_likes").insert({ post_id: postId, user_id: currentUserId });
-        void notifyPartner({ kind: "like", title: `${myName} liked your post ❤️`, url: "/us" });
+        void notifyPartner({ kind: "like", title: `${myName} liked your post ❤️`, url: `/us?post=${postId}` });
       }
     },
     onMutate: async (postId) => {
@@ -131,7 +158,7 @@ export function Feed({
     if (error) toast.error("Couldn't send.");
     else {
       qc.invalidateQueries({ queryKey: ["post_comments"] });
-      void notifyPartner({ kind: "comment", title: `${myName} commented`, body, url: "/us" });
+      void notifyPartner({ kind: "comment", title: `${myName} commented`, body, url: `/us?post=${postId}` });
     }
   }
 
@@ -143,12 +170,16 @@ export function Feed({
     setBusy(true);
     try {
       const path = await uploadPhoto(currentUserId, todayIST(), file);
-      const { error } = await createClient().from("posts").insert({
-        user_id: currentUserId,
-        post_date: todayIST(),
-        image_path: path,
-        caption: caption.trim() || null,
-      });
+      const { data: inserted, error } = await createClient()
+        .from("posts")
+        .insert({
+          user_id: currentUserId,
+          post_date: todayIST(),
+          image_path: path,
+          caption: caption.trim() || null,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
       setComposeOpen(false);
       setFile(null);
@@ -159,7 +190,7 @@ export function Feed({
         kind: "post_new",
         title: `${myName} shared a moment 📸`,
         body: caption.trim() || undefined,
-        url: "/us",
+        url: `/us?post=${inserted.id}`,
       });
       toast.success("Shared 💛");
     } catch {
@@ -219,7 +250,14 @@ export function Feed({
             const likedByMe = likes.some((l) => l.post_id === post.id && l.user_id === currentUserId);
             const showComments = openComments === post.id;
             return (
-              <article key={post.id} className="overflow-hidden rounded-3xl border bg-card shadow-soft">
+              <article
+                key={post.id}
+                id={`post-${post.id}`}
+                className={cn(
+                  "overflow-hidden rounded-3xl border bg-card shadow-soft transition-shadow",
+                  post.id === focusPost && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+                )}
+              >
                 <div className="flex items-center gap-2 px-4 py-3">
                   <Avatar className="size-8">
                     <AvatarFallback className="bg-primary/15 text-xs font-bold text-primary">
@@ -302,16 +340,34 @@ export function Feed({
             <SheetTitle>Share a moment</SheetTitle>
           </SheetHeader>
           <div className="space-y-3 px-4">
-            <label className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-2xl border border-dashed bg-muted/40 text-sm text-muted-foreground">
-              {file ? file.name : "Tap to pick a photo 📷"}
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex h-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed bg-muted/40 text-sm font-medium text-muted-foreground">
+                <ImageIcon className="size-6" />
+                Gallery
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              <label className="flex h-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed bg-muted/40 text-sm font-medium text-muted-foreground">
+                <Camera className="size-6" />
+                Camera
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+            </div>
+            {file ? (
+              <p className="truncate rounded-xl bg-primary/10 px-3 py-2 text-sm font-medium text-primary">
+                📷 {file.name}
+              </p>
+            ) : null}
             <Input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Say something…" />
           </div>
           <SheetFooter>

@@ -59,7 +59,7 @@ export function TaskComments({
       kind: "task_comment",
       title: `${meName} on "${taskTitle}"`,
       body,
-      url: "/calendar",
+      url: `/calendar?task=${taskId}`,
     });
   }
 

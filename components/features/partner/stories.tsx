@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Camera, Image as ImageIcon, Plus, Send, Trash2, Type, X } from "lucide-react";
@@ -26,6 +26,25 @@ const COLORS = ["#ffffff", "#111111", "#fbbf24", "#fb7185"];
 
 const firstName = (p: Profile) => p.display_name.split(" ")[0];
 const initials = (p: Profile) => p.display_name.slice(0, 2).toUpperCase();
+
+// The on-screen height (shrinks when the mobile keyboard opens) so the full-screen
+// story viewer follows the visible area and the reply bar stays above the keyboard.
+function useViewportHeight() {
+  return useSyncExternalStore(
+    (cb) => {
+      const vv = window.visualViewport;
+      if (!vv) return () => {};
+      vv.addEventListener("resize", cb);
+      vv.addEventListener("scroll", cb);
+      return () => {
+        vv.removeEventListener("resize", cb);
+        vv.removeEventListener("scroll", cb);
+      };
+    },
+    () => window.visualViewport?.height ?? 0,
+    () => 0,
+  );
+}
 
 export function Stories({
   profiles,
@@ -413,6 +432,7 @@ function StoryViewer({
     .slice(0, startGroupIndex)
     .reduce((n, g) => n + g.stories.length, 0);
   const qc = useQueryClient();
+  const viewportH = useViewportHeight();
   const [pos, setPos] = useState(startPos);
   const [paused, setPaused] = useState(false);
   const [reply, setReply] = useState("");
@@ -492,7 +512,10 @@ function StoryViewer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black">
+    <div
+      className="fixed inset-x-0 top-0 z-50 flex flex-col bg-black"
+      style={{ height: viewportH ? `${viewportH}px` : "100dvh" }}
+    >
       <div className="flex gap-1 px-3 pt-3">
         {group.stories.map((s, i) => (
           <div key={s.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/30">
@@ -527,7 +550,7 @@ function StoryViewer({
         </button>
       </div>
 
-      <div className="relative flex-1">
+      <div className="relative min-h-0 flex-1">
         {story.url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={story.url} alt="" className="absolute inset-0 size-full object-contain" />
@@ -561,9 +584,9 @@ function StoryViewer({
       </div>
 
       {/* Inline chat thread — replies + reply-to-reply, no new page. */}
-      <div className="bg-gradient-to-t from-black/80 to-transparent px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="shrink-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
         {replies.length > 0 ? (
-          <div className="mb-2 max-h-[34vh] space-y-1.5 overflow-y-auto px-1">
+          <div className="mb-2 max-h-[28vh] space-y-1.5 overflow-y-auto px-1">
             {replies.map((r) => {
               const mine = r.user_id === currentUserId;
               return (
@@ -591,7 +614,7 @@ function StoryViewer({
             onBlur={() => setPaused(false)}
             onKeyDown={(e) => e.key === "Enter" && sendReply(reply)}
             placeholder={isMine ? "Add to the thread…" : `Reply to ${firstName(group.user)}…`}
-            className="h-11 flex-1 rounded-full border border-white/40 bg-black/30 px-4 text-sm text-white placeholder:text-white/60 focus:border-white/70 focus:outline-none"
+            className="h-11 min-w-0 flex-1 rounded-full border border-white/40 bg-black/30 px-4 text-base text-white placeholder:text-white/60 focus:border-white/70 focus:outline-none"
           />
           {reply.trim() ? (
             <button

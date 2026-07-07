@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Camera, Image as ImageIcon, Plus, Send, Trash2, Type, X } from "lucide-react";
@@ -27,23 +27,26 @@ const COLORS = ["#ffffff", "#111111", "#fbbf24", "#fb7185"];
 const firstName = (p: Profile) => p.display_name.split(" ")[0];
 const initials = (p: Profile) => p.display_name.slice(0, 2).toUpperCase();
 
-// The on-screen height (shrinks when the mobile keyboard opens) so the full-screen
-// story viewer follows the visible area and the reply bar stays above the keyboard.
-function useViewportHeight() {
-  return useSyncExternalStore(
-    (cb) => {
-      const vv = window.visualViewport;
-      if (!vv) return () => {};
-      vv.addEventListener("resize", cb);
-      vv.addEventListener("scroll", cb);
-      return () => {
-        vv.removeEventListener("resize", cb);
-        vv.removeEventListener("scroll", cb);
-      };
-    },
-    () => window.visualViewport?.height ?? 0,
-    () => 0,
-  );
+// Tracks the visible viewport (height + top offset) so the full-screen story
+// viewer follows the visible area when the mobile keyboard opens — keeping the
+// reply bar above the keyboard AND correctly positioned (iOS shifts the visual
+// viewport down, so we must translate by offsetTop or the overlay slides away).
+function useKeyboardViewport() {
+  const [vp, setVp] = useState<{ h: number; top: number } | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setVp({ h: vv.height, top: vv.offsetTop });
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    const raf = requestAnimationFrame(update);
+    return () => {
+      cancelAnimationFrame(raf);
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
+  return vp;
 }
 
 export function Stories({
@@ -432,7 +435,7 @@ function StoryViewer({
     .slice(0, startGroupIndex)
     .reduce((n, g) => n + g.stories.length, 0);
   const qc = useQueryClient();
-  const viewportH = useViewportHeight();
+  const vp = useKeyboardViewport();
   const [pos, setPos] = useState(startPos);
   const [paused, setPaused] = useState(false);
   const [reply, setReply] = useState("");
@@ -514,7 +517,10 @@ function StoryViewer({
   return (
     <div
       className="fixed inset-x-0 top-0 z-50 flex flex-col bg-black"
-      style={{ height: viewportH ? `${viewportH}px` : "100dvh" }}
+      style={{
+        height: vp ? `${vp.h}px` : "100dvh",
+        transform: vp?.top ? `translateY(${vp.top}px)` : undefined,
+      }}
     >
       <div className="flex gap-1 px-3 pt-3">
         {group.stories.map((s, i) => (

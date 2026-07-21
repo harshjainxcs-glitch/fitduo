@@ -40,27 +40,34 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+type Mode = "own" | "partner";
+
 export function CycleView({
-  userId,
-  profile,
-  partnerName,
+  viewerId,
+  subject,
+  mode,
+  subjectName,
+  supporterName,
 }: {
-  userId: string;
-  profile: Profile;
-  partnerName: string;
+  viewerId: string;
+  subject: Profile;
+  mode: Mode;
+  subjectName: string;
+  supporterName: string;
 }) {
   const qc = useQueryClient();
   const today = todayIST();
+  const own = mode === "own";
   const [month, setMonth] = useState(today.slice(0, 7)); // "yyyy-MM"
   const [logDate, setLogDate] = useState<string | null>(null);
 
   const { data: days = [] } = useQuery({
-    queryKey: ["cycle_days", userId],
+    queryKey: ["cycle_days", subject.id],
     queryFn: async (): Promise<CycleDay[]> => {
       const { data, error } = await createClient()
         .from("cycle_days")
         .select("*")
-        .eq("user_id", userId)
+        .eq("user_id", subject.id)
         .gte("day", addDays(today, -400))
         .order("day");
       if (error) throw error;
@@ -69,12 +76,13 @@ export function CycleView({
   });
 
   const { data: todayWorkouts = [] } = useQuery({
-    queryKey: ["workout_logs", userId, today],
+    queryKey: ["workout_logs", viewerId, today],
+    enabled: own,
     queryFn: async (): Promise<WorkoutLog[]> => {
       const { data, error } = await createClient()
         .from("workout_logs")
         .select("*")
-        .eq("user_id", userId)
+        .eq("user_id", viewerId)
         .eq("log_date", today);
       if (error) throw error;
       return data;
@@ -97,10 +105,10 @@ export function CycleView({
       predictCycle(
         flowDays,
         today,
-        profile.cycle_avg_length,
-        profile.cycle_period_length,
+        subject.cycle_avg_length,
+        subject.cycle_period_length,
       ),
-    [flowDays, today, profile.cycle_avg_length, profile.cycle_period_length],
+    [flowDays, today, subject.cycle_avg_length, subject.cycle_period_length],
   );
 
   const todayEntry = byDay.get(today);
@@ -111,15 +119,15 @@ export function CycleView({
     if (flow === null && !todayEntry) return;
     const { error } = await supabase
       .from("cycle_days")
-      .upsert({ user_id: userId, day: today, flow }, { onConflict: "user_id,day" });
+      .upsert({ user_id: viewerId, day: today, flow }, { onConflict: "user_id,day" });
     if (error) toast.error("Couldn't save.");
-    else qc.invalidateQueries({ queryKey: ["cycle_days", userId] });
+    else qc.invalidateQueries({ queryKey: ["cycle_days", subject.id] });
   }
 
   async function claimMovement() {
     if (movementClaimed) return;
     const { error } = await createClient().from("workout_logs").insert({
-      user_id: userId,
+      user_id: viewerId,
       log_date: today,
       type: "Period self-care",
       source: "cycle_selfcare",
@@ -129,66 +137,72 @@ export function CycleView({
       toast.error("Couldn't claim.");
       return;
     }
-    qc.invalidateQueries({ queryKey: ["workout_logs", userId, today] });
+    qc.invalidateQueries({ queryKey: ["workout_logs", viewerId, today] });
     qc.invalidateQueries({ queryKey: ["workout_logs"] });
     toast.success("Movement points claimed — rest up 💛");
   }
 
   return (
     <div className="space-y-5 px-4 py-2">
-      <StatusHero pred={pred} />
+      <StatusHero pred={pred} own={own} subjectName={subjectName} />
 
-      {/* Care card while menstruating */}
+      {/* Care (her) vs support (partner) */}
       {pred.isMenstruating ? (
-        <CareCard
-          partnerName={partnerName}
-          periodDay={pred.periodDay ?? 1}
-          movementClaimed={movementClaimed}
-          onClaim={claimMovement}
-        />
+        own ? (
+          <CareCard
+            supporterName={supporterName}
+            periodDay={pred.periodDay ?? 1}
+            movementClaimed={movementClaimed}
+            onClaim={claimMovement}
+          />
+        ) : (
+          <SupportCard subjectName={subjectName} periodDay={pred.periodDay ?? 1} />
+        )
       ) : null}
 
-      {/* Log today's flow (1-tap) */}
-      <section className="space-y-3 rounded-3xl border bg-card p-4 shadow-soft">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold">How are you today?</h2>
-          <button
-            type="button"
-            className="text-xs font-semibold text-primary"
-            onClick={() => setLogDate(today)}
-          >
-            Symptoms & mood
-          </button>
-        </div>
-        <div className="grid grid-cols-5 gap-2">
-          <FlowChip
-            label="None"
-            active={!todayEntry?.flow}
-            onClick={() => setTodayFlow(null)}
-          />
-          {FLOWS.map((f) => (
+      {/* Log today's flow (own only) */}
+      {own ? (
+        <section className="space-y-3 rounded-3xl border bg-card p-4 shadow-soft">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold">How are you today?</h2>
+            <button
+              type="button"
+              className="text-xs font-semibold text-primary"
+              onClick={() => setLogDate(today)}
+            >
+              Symptoms & mood
+            </button>
+          </div>
+          <div className="grid grid-cols-5 gap-2">
             <FlowChip
-              key={f.id}
-              label={f.label}
-              dots={f.dots}
-              active={todayEntry?.flow === f.id}
-              onClick={() => setTodayFlow(f.id)}
+              label="None"
+              active={!todayEntry?.flow}
+              onClick={() => setTodayFlow(null)}
             />
-          ))}
-        </div>
-        {todayEntry && (todayEntry.symptoms.length > 0 || todayEntry.mood) ? (
-          <p className="text-xs text-muted-foreground">
-            {[
-              todayEntry.mood
-                ? MOODS.find((m) => m.id === todayEntry.mood)?.emoji
-                : null,
-              todayEntry.symptoms.join(", ") || null,
-            ]
-              .filter(Boolean)
-              .join("  ·  ")}
-          </p>
-        ) : null}
-      </section>
+            {FLOWS.map((f) => (
+              <FlowChip
+                key={f.id}
+                label={f.label}
+                dots={f.dots}
+                active={todayEntry?.flow === f.id}
+                onClick={() => setTodayFlow(f.id)}
+              />
+            ))}
+          </div>
+          {todayEntry && (todayEntry.symptoms.length > 0 || todayEntry.mood) ? (
+            <p className="text-xs text-muted-foreground">
+              {[
+                todayEntry.mood
+                  ? MOODS.find((m) => m.id === todayEntry.mood)?.emoji
+                  : null,
+                todayEntry.symptoms.join(", ") || null,
+              ]
+                .filter(Boolean)
+                .join("  ·  ")}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {/* Month calendar */}
       <section className="space-y-3 rounded-3xl border bg-card p-4 shadow-soft">
@@ -224,20 +238,31 @@ export function CycleView({
       <Insights pred={pred} logged={days.length} />
 
       <DayLogSheet
-        userId={userId}
+        viewerId={viewerId}
+        subjectId={subject.id}
         date={logDate}
         existing={logDate ? byDay.get(logDate) : undefined}
+        readOnly={!own}
         onClose={() => setLogDate(null)}
-        onSaved={() => qc.invalidateQueries({ queryKey: ["cycle_days", userId] })}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["cycle_days", subject.id] })}
       />
     </div>
   );
 }
 
-function StatusHero({ pred }: { pred: ReturnType<typeof predictCycle> }) {
+function StatusHero({
+  pred,
+  own,
+  subjectName,
+}: {
+  pred: ReturnType<typeof predictCycle>;
+  own: boolean;
+  subjectName: string;
+}) {
   const menstruating = pred.isMenstruating;
   const cycleDay = pred.cycleDay ?? 0;
   const frac = Math.min(1, cycleDay / pred.avgCycleLength);
+  const who = own ? "You" : subjectName;
 
   return (
     <section
@@ -257,12 +282,14 @@ function StatusHero({ pred }: { pred: ReturnType<typeof predictCycle> }) {
       </p>
       <h1 className="text-3xl font-extrabold leading-tight">
         {menstruating
-          ? "You're on your period 🌸"
+          ? own
+            ? "You're on your period 🌸"
+            : `${subjectName} is on their period 🌸`
           : pred.daysUntilNext !== null
             ? pred.daysUntilNext <= 0
-              ? "Period expected any day"
-              : `Period in ${pred.daysUntilNext} day${pred.daysUntilNext === 1 ? "" : "s"}`
-            : "Log your first period to begin"}
+              ? `${who}${own ? "r" : "’s"} period is expected any day`
+              : `${who}${own ? "r" : "’s"} period in ${pred.daysUntilNext} day${pred.daysUntilNext === 1 ? "" : "s"}`
+            : "Log the first period to begin"}
       </h1>
       {pred.cycleDay !== null ? (
         <>
@@ -283,12 +310,12 @@ function StatusHero({ pred }: { pred: ReturnType<typeof predictCycle> }) {
 }
 
 function CareCard({
-  partnerName,
+  supporterName,
   periodDay,
   movementClaimed,
   onClaim,
 }: {
-  partnerName: string;
+  supporterName: string;
   periodDay: number;
   movementClaimed: boolean;
   onClaim: () => void;
@@ -299,8 +326,8 @@ function CareCard({
       <div className="flex items-start gap-2">
         <Heart className="mt-0.5 size-5 shrink-0 fill-rose-500 text-rose-500" />
         <p className="text-sm font-medium text-rose-900 dark:text-rose-100">
-          {partnerName} is here for you 💛 Take it easy today — rest, warmth, and
-          please eat well.
+          {supporterName} is here for you 💛 Take it easy today — rest, warmth,
+          and please eat well.
         </p>
       </div>
 
@@ -339,6 +366,41 @@ function CareCard({
       <p className="text-center text-xs text-rose-700/80 dark:text-rose-300/70">
         No workout needed while you&apos;re on your period — rest counts.
       </p>
+    </section>
+  );
+}
+
+function SupportCard({
+  subjectName,
+  periodDay,
+}: {
+  subjectName: string;
+  periodDay: number;
+}) {
+  return (
+    <section className="space-y-3 rounded-3xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-950/30">
+      <div className="flex items-start gap-2">
+        <Heart className="mt-0.5 size-5 shrink-0 fill-rose-500 text-rose-500" />
+        <p className="text-sm font-medium text-rose-900 dark:text-rose-100">
+          {subjectName} is on Day {periodDay} of their period. Be extra gentle
+          today — check in, remind them to eat, bring warmth 💛
+        </p>
+      </div>
+      {periodDay <= 3 ? (
+        <ul className="space-y-1.5 rounded-2xl bg-white/70 p-3 text-sm text-rose-900 dark:bg-rose-900/20 dark:text-rose-100">
+          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-rose-500">
+            Ways to help
+          </p>
+          {painTips()
+            .slice(0, 3)
+            .map((t) => (
+              <li key={t} className="flex gap-2">
+                <span>•</span>
+                <span>{t}</span>
+              </li>
+            ))}
+        </ul>
+      ) : null}
     </section>
   );
 }
@@ -466,15 +528,19 @@ function Insights({
 }
 
 function DayLogSheet({
-  userId,
+  viewerId,
+  subjectId,
   date,
   existing,
+  readOnly,
   onClose,
   onSaved,
 }: {
-  userId: string;
+  viewerId: string;
+  subjectId: string;
   date: string | null;
   existing: CycleDay | undefined;
+  readOnly: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -482,17 +548,84 @@ function DayLogSheet({
     <Sheet open={date !== null} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="bottom" className="mx-auto max-h-[92dvh] max-w-md overflow-y-auto rounded-t-3xl">
         {date ? (
-          <DayLogForm
-            key={date}
-            userId={userId}
-            date={date}
-            existing={existing}
-            onClose={onClose}
-            onSaved={onSaved}
-          />
+          readOnly ? (
+            <ReadOnlyDay date={date} entry={existing} subjectId={subjectId} />
+          ) : (
+            <DayLogForm
+              key={date}
+              userId={viewerId}
+              date={date}
+              existing={existing}
+              onClose={onClose}
+              onSaved={onSaved}
+            />
+          )
         ) : null}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function ReadOnlyDay({
+  date,
+  entry,
+  subjectId,
+}: {
+  date: string;
+  entry: CycleDay | undefined;
+  subjectId: string;
+}) {
+  void subjectId;
+  const flow = entry?.flow ? FLOWS.find((f) => f.id === entry.flow) : null;
+  const mood = entry?.mood ? MOODS.find((m) => m.id === entry.mood) : null;
+  const hasAny = entry && (entry.flow || entry.symptoms.length || entry.mood || entry.note);
+  return (
+    <>
+      <SheetHeader>
+        <SheetTitle>{formatDisplayDate(date)}</SheetTitle>
+      </SheetHeader>
+      <div className="space-y-4 px-4 py-2">
+        {!hasAny ? (
+          <p className="text-sm text-muted-foreground">Nothing logged this day.</p>
+        ) : (
+          <>
+            {flow ? (
+              <Row label="Flow" value={flow.label} />
+            ) : null}
+            {mood ? (
+              <Row label="Mood" value={`${mood.emoji} ${mood.label}`} />
+            ) : null}
+            {entry && entry.symptoms.length > 0 ? (
+              <div className="space-y-1.5">
+                <p className="text-sm font-semibold">Symptoms</p>
+                <div className="flex flex-wrap gap-2">
+                  {entry.symptoms.map((s) => (
+                    <span
+                      key={s}
+                      className="rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {entry?.note ? <Row label="Note" value={entry.note} /> : null}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-0.5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="text-sm">{value}</p>
+    </div>
   );
 }
 

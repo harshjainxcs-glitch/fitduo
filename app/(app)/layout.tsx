@@ -26,8 +26,8 @@ export default async function AppLayout({
   let tracksCycle = false;
   if (user) {
     const supabase = await createClient();
-    const [{ data: profile }, { data: score }] = await Promise.all([
-      supabase.from("profiles").select("display_name,tracks_cycle").eq("id", user.id).single(),
+    const [{ data: profiles }, { data: score }] = await Promise.all([
+      supabase.from("profiles").select("id,display_name,tracks_cycle"),
       supabase
         .from("weekly_scores")
         .select("total")
@@ -35,10 +35,12 @@ export default async function AppLayout({
         .eq("week_start", weekStartIST(todayIST()))
         .maybeSingle(),
     ]);
+    const profile = profiles?.find((p) => p.id === user.id);
     firstName = profile?.display_name?.split(" ")[0];
     initials = (profile?.display_name ?? "FD").slice(0, 2).toUpperCase();
     points = Math.round(Number(score?.total ?? 0));
-    tracksCycle = Boolean(profile?.tracks_cycle);
+    // Cycle tab appears if either partner tracks (so the other can support).
+    tracksCycle = (profiles ?? []).some((p) => p.tracks_cycle);
   }
 
   return (

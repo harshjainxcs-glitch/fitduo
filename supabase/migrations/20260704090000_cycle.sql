@@ -1,7 +1,7 @@
 -- Menstrual cycle tracking (opt-in per user, Apple-style).
--- Cycle data is PRIVATE: only the owner can read it (unlike the app's other
--- shared-read tables). The cron scheduler uses the service-role client, which
--- bypasses RLS, so caring reminders still work.
+-- Shared-read between the two partners (public signup is disabled, so "any
+-- authenticated user" is exactly the two of them and no one else). Only the
+-- owner can WRITE their own cycle. The partner sees it read-only for support.
 
 alter table public.profiles
   add column if not exists tracks_cycle boolean not null default false,
@@ -29,9 +29,9 @@ create index if not exists cycle_days_user_day_idx on public.cycle_days (user_id
 
 alter table public.cycle_days enable row level security;
 
--- Owner-only for every operation (health data stays private).
-create policy cycle_days_select_own on public.cycle_days
-  for select to authenticated using (user_id = (select auth.uid()));
+-- Shared-read (both partners); own-write only.
+create policy cycle_days_select_all on public.cycle_days
+  for select to authenticated using (true);
 create policy cycle_days_insert_own on public.cycle_days
   for insert to authenticated with check (user_id = (select auth.uid()));
 create policy cycle_days_update_own on public.cycle_days

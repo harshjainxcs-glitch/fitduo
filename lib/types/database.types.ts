@@ -27,6 +27,7 @@ export type NotifPrefs = {
   partner?: boolean;
   weekly?: boolean;
   tasks?: boolean;
+  cycle?: boolean;
   quiet_hours?: { start: string; end: string };
   water_interval_min?: number;
 };
@@ -48,6 +49,9 @@ export type Database = {
           weight_water: number;
           weight_workout: number;
           notif_prefs: Json;
+          tracks_cycle: boolean;
+          cycle_avg_length: number;
+          cycle_period_length: number;
         };
         Insert: {
           id: string;
@@ -62,6 +66,9 @@ export type Database = {
           weight_water?: number;
           weight_workout?: number;
           notif_prefs?: Json;
+          tracks_cycle?: boolean;
+          cycle_avg_length?: number;
+          cycle_period_length?: number;
         };
         Update: {
           id?: string;
@@ -76,6 +83,9 @@ export type Database = {
           weight_water?: number;
           weight_workout?: number;
           notif_prefs?: Json;
+          tracks_cycle?: boolean;
+          cycle_avg_length?: number;
+          cycle_period_length?: number;
         };
         Relationships: [];
       };
@@ -214,6 +224,7 @@ export type Database = {
           duration_min: number | null;
           photo_path: string | null;
           note: string | null;
+          source: string | null;
         };
         Insert: {
           id?: string;
@@ -226,6 +237,7 @@ export type Database = {
           duration_min?: number | null;
           photo_path?: string | null;
           note?: string | null;
+          source?: string | null;
         };
         Update: {
           id?: string;
@@ -237,6 +249,43 @@ export type Database = {
           type?: string | null;
           duration_min?: number | null;
           photo_path?: string | null;
+          note?: string | null;
+          source?: string | null;
+        };
+        Relationships: [];
+      };
+      cycle_days: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          user_id: string;
+          day: string;
+          flow: string | null;
+          symptoms: string[];
+          mood: string | null;
+          note: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          user_id: string;
+          day: string;
+          flow?: string | null;
+          symptoms?: string[];
+          mood?: string | null;
+          note?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          user_id?: string;
+          day?: string;
+          flow?: string | null;
+          symptoms?: string[];
+          mood?: string | null;
           note?: string | null;
         };
         Relationships: [];
@@ -689,6 +738,7 @@ export type MealGroup = Tables<"meal_groups">;
 export type MealLog = Tables<"meal_logs">;
 export type WaterLog = Tables<"water_logs">;
 export type WorkoutLog = Tables<"workout_logs">;
+export type CycleDay = Tables<"cycle_days">;
 export type PushSubscriptionRow = Tables<"push_subscriptions">;
 export type WeeklyResult = Tables<"weekly_results">;
 export type Achievement = Tables<"achievements">;

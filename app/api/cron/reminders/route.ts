@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPush, type PushPayload } from "@/lib/push/webpush";
 import { resolveNotifPrefs } from "@/lib/constants";
 import {
+  addDays,
   dayOfWeekIST,
   formatTime,
   hourIST,
@@ -17,6 +18,7 @@ import {
   waterReminderDue,
 } from "@/lib/reminders";
 import { occursOn, timeToMinutes } from "@/lib/calendar";
+import { cycleCareMessage, predictCycle } from "@/lib/cycle";
 import type { Profile } from "@/lib/types/database.types";
 
 export const runtime = "nodejs";
@@ -231,6 +233,35 @@ export async function GET(req: Request) {
           body: t.note || `Scheduled at ${formatTime(t.start_time)}.`,
           url: "/calendar",
           tag: `task-${t.id}`,
+        });
+      }
+    }
+
+    // --- Menstrual cycle care (private; one caring "from partner" nudge/day) ---
+    if (prefs.cycle && profile.tracks_cycle && partner && !quietNow && hour >= 8) {
+      const { data: flowRows } = await admin
+        .from("cycle_days")
+        .select("day")
+        .eq("user_id", profile.id)
+        .not("flow", "is", null)
+        .gte("day", addDays(date, -45))
+        .order("day");
+      const pred = predictCycle(
+        (flowRows ?? []).map((r) => r.day),
+        date,
+        profile.cycle_avg_length,
+        profile.cycle_period_length,
+      );
+      if (pred.isMenstruating) {
+        const msg = cycleCareMessage(
+          (pred.periodDay ?? 1) - 1,
+          partner.display_name.split(" ")[0],
+        );
+        await fire(profile.id, "cycle", `cycle:${date}`, {
+          title: msg.title,
+          body: msg.body,
+          url: "/cycle",
+          tag: "cycle",
         });
       }
     }

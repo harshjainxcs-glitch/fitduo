@@ -22,5 +22,18 @@ export default async function TodayPage() {
     );
   }
 
-  return <TodayView userId={user.id} profile={profile} />;
+  let partnerName = "Your partner";
+  if (profile.tracks_cycle) {
+    const { data: partner } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .neq("id", user.id)
+      .limit(1)
+      .maybeSingle();
+    partnerName = partner?.display_name?.split(" ")[0] ?? partnerName;
+  }
+
+  return (
+    <TodayView userId={user.id} profile={profile} partnerName={partnerName} />
+  );
 }

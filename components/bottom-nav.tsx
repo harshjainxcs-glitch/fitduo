@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   CalendarDays,
   CalendarRange,
+  Flower2,
   Home,
   LineChart,
   Settings,
@@ -30,19 +31,24 @@ const TABS = [
   { href: "/us", label: "Feed", icon: Users },
 ] as const;
 
-const MORE_LINKS = [
+const BASE_MORE_LINKS = [
   { href: "/weekly", label: "Weekly", icon: Trophy },
   { href: "/history", label: "History", icon: LineChart },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
+const CYCLE_LINK = { href: "/cycle", label: "Cycle", icon: Flower2 } as const;
+
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function BottomNav() {
+export function BottomNav({ showCycle = false }: { showCycle?: boolean }) {
   const pathname = usePathname();
-  const moreActive = MORE_LINKS.some((l) => isActive(pathname, l.href));
+  const moreLinks = showCycle
+    ? [CYCLE_LINK, ...BASE_MORE_LINKS]
+    : BASE_MORE_LINKS;
+  const moreActive = moreLinks.some((l) => isActive(pathname, l.href));
 
   return (
     <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -87,7 +93,7 @@ export function BottomNav() {
               </SheetDescription>
             </SheetHeader>
             <div className="grid gap-1 px-4 pb-8">
-              {MORE_LINKS.map(({ href, label, icon: Icon }) => (
+              {moreLinks.map(({ href, label, icon: Icon }) => (
                 <Link
                   key={href}
                   href={href}

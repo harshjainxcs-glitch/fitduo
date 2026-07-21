@@ -33,6 +33,9 @@ export function SettingsForm({
   const [weightWater, setWeightWater] = useState(profile.weight_water);
   const [weightWorkout, setWeightWorkout] = useState(profile.weight_workout);
   const [notif, setNotif] = useState(resolveNotifPrefs(profile.notif_prefs));
+  const [tracksCycle, setTracksCycle] = useState(profile.tracks_cycle);
+  const [cycleAvg, setCycleAvg] = useState(profile.cycle_avg_length);
+  const [cyclePeriod, setCyclePeriod] = useState(profile.cycle_period_length);
 
   const [avatarPath, setAvatarPath] = useState(profile.avatar_url);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -100,6 +103,9 @@ export function SettingsForm({
         weight_water: weightWater,
         weight_workout: weightWorkout,
         notif_prefs: notif,
+        tracks_cycle: tracksCycle,
+        cycle_avg_length: cycleAvg,
+        cycle_period_length: cyclePeriod,
       })
       .eq("id", userId);
     setSaving(false);
@@ -297,6 +303,7 @@ export function SettingsForm({
               ["tasks", "Task reminders"],
               ["partner", "Partner activity"],
               ["weekly", "Weekly standings"],
+              ["cycle", "Cycle care (private)"],
             ] as const
           ).map(([key, label]) => (
             <div key={key} className="flex items-center justify-between">
@@ -347,6 +354,47 @@ export function SettingsForm({
               }
             />
           </Field>
+        </CardContent>
+      </Card>
+
+      {/* Cycle tracking (private, opt-in) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Cycle tracking 🌸</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="pr-3">
+              <p className="text-sm font-medium">Track my menstrual cycle</p>
+              <p className="text-xs text-muted-foreground">
+                Private to you. Adds a Cycle tab, predictions, and gentle care
+                reminders.
+              </p>
+            </div>
+            <Switch checked={tracksCycle} onCheckedChange={setTracksCycle} />
+          </div>
+          {tracksCycle ? (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Avg cycle length (days)">
+                <Input
+                  type="number"
+                  min={21}
+                  max={40}
+                  value={cycleAvg}
+                  onChange={(e) => setCycleAvg(Number(e.target.value))}
+                />
+              </Field>
+              <Field label="Typical period (days)">
+                <Input
+                  type="number"
+                  min={2}
+                  max={10}
+                  value={cyclePeriod}
+                  onChange={(e) => setCyclePeriod(Number(e.target.value))}
+                />
+              </Field>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

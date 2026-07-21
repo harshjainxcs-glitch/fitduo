@@ -30,7 +30,7 @@ export const WEEKDAYS: { index: number; short: string; long: string }[] = [
 export const DEFAULT_NOTIF_PREFS: Required<
   Pick<
     NotifPrefs,
-    "water" | "meals" | "partner" | "weekly" | "tasks" | "water_interval_min"
+    "water" | "meals" | "partner" | "weekly" | "tasks" | "cycle" | "water_interval_min"
   >
 > & { quiet_hours: { start: string; end: string } } = {
   water: true,
@@ -38,6 +38,7 @@ export const DEFAULT_NOTIF_PREFS: Required<
   partner: true,
   weekly: true,
   tasks: true,
+  cycle: true,
   water_interval_min: 180,
   quiet_hours: { start: "22:00", end: "07:00" },
 };
@@ -51,6 +52,7 @@ export function resolveNotifPrefs(raw: unknown): typeof DEFAULT_NOTIF_PREFS {
     partner: p.partner ?? DEFAULT_NOTIF_PREFS.partner,
     weekly: p.weekly ?? DEFAULT_NOTIF_PREFS.weekly,
     tasks: p.tasks ?? DEFAULT_NOTIF_PREFS.tasks,
+    cycle: p.cycle ?? DEFAULT_NOTIF_PREFS.cycle,
     water_interval_min:
       p.water_interval_min ?? DEFAULT_NOTIF_PREFS.water_interval_min,
     quiet_hours: {

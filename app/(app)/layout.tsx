@@ -23,10 +23,11 @@ export default async function AppLayout({
   let firstName: string | undefined;
   let initials = "FD";
   let points = 0;
+  let tracksCycle = false;
   if (user) {
     const supabase = await createClient();
     const [{ data: profile }, { data: score }] = await Promise.all([
-      supabase.from("profiles").select("display_name").eq("id", user.id).single(),
+      supabase.from("profiles").select("display_name,tracks_cycle").eq("id", user.id).single(),
       supabase
         .from("weekly_scores")
         .select("total")
@@ -37,6 +38,7 @@ export default async function AppLayout({
     firstName = profile?.display_name?.split(" ")[0];
     initials = (profile?.display_name ?? "FD").slice(0, 2).toUpperCase();
     points = Math.round(Number(score?.total ?? 0));
+    tracksCycle = Boolean(profile?.tracks_cycle);
   }
 
   return (
@@ -67,7 +69,7 @@ export default async function AppLayout({
       <main className="flex-1 pb-28">{children}</main>
 
       <RealtimeSync />
-      <BottomNav />
+      <BottomNav showCycle={tracksCycle} />
     </div>
   );
 }

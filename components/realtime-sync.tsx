@@ -22,6 +22,7 @@ const TABLES = [
   "story_replies",
   "activities",
   "task_comments",
+  "cycle_days",
 ] as const;
 
 export function RealtimeSync() {

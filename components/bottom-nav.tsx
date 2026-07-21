@@ -24,12 +24,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-const TABS = [
-  { href: "/today", label: "Today", icon: Home },
-  { href: "/calendar", label: "Calendar", icon: CalendarRange },
-  { href: "/plan", label: "Plan", icon: CalendarDays },
-  { href: "/us", label: "Feed", icon: Users },
-] as const;
+const TAB_TODAY = { href: "/today", label: "Today", icon: Home } as const;
+const TAB_CALENDAR = { href: "/calendar", label: "Calendar", icon: CalendarRange } as const;
+const TAB_PLAN = { href: "/plan", label: "Plan", icon: CalendarDays } as const;
+const TAB_FEED = { href: "/us", label: "Feed", icon: Users } as const;
+const TAB_CYCLE = { href: "/cycle", label: "Cycle", icon: Flower2 } as const;
 
 const BASE_MORE_LINKS = [
   { href: "/weekly", label: "Weekly", icon: Trophy },
@@ -37,23 +36,35 @@ const BASE_MORE_LINKS = [
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-const CYCLE_LINK = { href: "/cycle", label: "Cycle", icon: Flower2 } as const;
-
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function BottomNav({ showCycle = false }: { showCycle?: boolean }) {
+export function BottomNav({
+  ownCycle = false,
+  partnerCycle = false,
+}: {
+  ownCycle?: boolean;
+  partnerCycle?: boolean;
+}) {
   const pathname = usePathname();
-  const moreLinks = showCycle
-    ? [CYCLE_LINK, ...BASE_MORE_LINKS]
-    : BASE_MORE_LINKS;
+
+  // Her own cycle → Cycle becomes a one-tap main tab (Calendar moves to More).
+  // Partner tracks → Cycle sits in More so they can still support.
+  const tabs = ownCycle
+    ? [TAB_TODAY, TAB_CYCLE, TAB_PLAN, TAB_FEED]
+    : [TAB_TODAY, TAB_CALENDAR, TAB_PLAN, TAB_FEED];
+  const moreLinks = [
+    ...(ownCycle ? [TAB_CALENDAR] : []),
+    ...(partnerCycle && !ownCycle ? [TAB_CYCLE] : []),
+    ...BASE_MORE_LINKS,
+  ];
   const moreActive = moreLinks.some((l) => isActive(pathname, l.href));
 
   return (
     <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-black/5 bg-card/95 p-1.5 shadow-float backdrop-blur">
-        {TABS.map(({ href, label, icon: Icon }) => {
+        {tabs.map(({ href, label, icon: Icon }) => {
           const active = isActive(pathname, href);
           return (
             <Link

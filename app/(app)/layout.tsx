@@ -23,7 +23,8 @@ export default async function AppLayout({
   let firstName: string | undefined;
   let initials = "FD";
   let points = 0;
-  let tracksCycle = false;
+  let ownCycle = false;
+  let partnerCycle = false;
   if (user) {
     const supabase = await createClient();
     const [{ data: profiles }, { data: score }] = await Promise.all([
@@ -39,8 +40,10 @@ export default async function AppLayout({
     firstName = profile?.display_name?.split(" ")[0];
     initials = (profile?.display_name ?? "FD").slice(0, 2).toUpperCase();
     points = Math.round(Number(score?.total ?? 0));
-    // Cycle tab appears if either partner tracks (so the other can support).
-    tracksCycle = (profiles ?? []).some((p) => p.tracks_cycle);
+    ownCycle = Boolean(profile?.tracks_cycle);
+    partnerCycle = (profiles ?? []).some(
+      (p) => p.id !== user.id && p.tracks_cycle,
+    );
   }
 
   return (
@@ -71,7 +74,7 @@ export default async function AppLayout({
       <main className="flex-1 pb-28">{children}</main>
 
       <RealtimeSync />
-      <BottomNav showCycle={tracksCycle} />
+      <BottomNav ownCycle={ownCycle} partnerCycle={partnerCycle} />
     </div>
   );
 }

@@ -262,7 +262,9 @@ function StatusHero({
   const menstruating = pred.isMenstruating;
   const cycleDay = pred.cycleDay ?? 0;
   const frac = Math.min(1, cycleDay / pred.avgCycleLength);
-  const who = own ? "You" : subjectName;
+  // "Your" for herself, "Pimi's" for the partner view.
+  const possessive = own ? "Your" : `${subjectName}’s`;
+  const days = pred.daysUntilNext ?? 0;
 
   return (
     <section
@@ -286,9 +288,9 @@ function StatusHero({
             ? "You're on your period 🌸"
             : `${subjectName} is on their period 🌸`
           : pred.daysUntilNext !== null
-            ? pred.daysUntilNext <= 0
-              ? `${who}${own ? "r" : "’s"} period is expected any day`
-              : `${who}${own ? "r" : "’s"} period in ${pred.daysUntilNext} day${pred.daysUntilNext === 1 ? "" : "s"}`
+            ? days <= 0
+              ? `${possessive} period is expected any day`
+              : `${possessive} period in ${days} day${days === 1 ? "" : "s"}`
             : "Log the first period to begin"}
       </h1>
       {pred.cycleDay !== null ? (

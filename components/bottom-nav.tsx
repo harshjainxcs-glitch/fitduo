@@ -49,21 +49,20 @@ export function BottomNav({
 }) {
   const pathname = usePathname();
 
-  // Her own cycle → Cycle becomes a one-tap main tab (Calendar moves to More).
-  // Partner tracks → Cycle sits in More so they can still support.
+  // Her own cycle → Cycle joins the main tabs (right after Today); Calendar
+  // stays a direct tab too. Partner tracks → Cycle sits in More to support.
   const tabs = ownCycle
-    ? [TAB_TODAY, TAB_CYCLE, TAB_PLAN, TAB_FEED]
+    ? [TAB_TODAY, TAB_CYCLE, TAB_CALENDAR, TAB_PLAN, TAB_FEED]
     : [TAB_TODAY, TAB_CALENDAR, TAB_PLAN, TAB_FEED];
   const moreLinks = [
-    ...(ownCycle ? [TAB_CALENDAR] : []),
     ...(partnerCycle && !ownCycle ? [TAB_CYCLE] : []),
     ...BASE_MORE_LINKS,
   ];
   const moreActive = moreLinks.some((l) => isActive(pathname, l.href));
 
   return (
-    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-      <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-black/5 bg-card/95 p-1.5 shadow-float backdrop-blur">
+    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="pointer-events-auto flex w-full max-w-md items-stretch gap-0.5 rounded-full border border-black/5 bg-card/95 p-1.5 shadow-float backdrop-blur">
         {tabs.map(({ href, label, icon: Icon }) => {
           const active = isActive(pathname, href);
           return (
@@ -72,14 +71,14 @@ export function BottomNav({
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-col items-center gap-0.5 rounded-full px-4 py-2 text-[10px] font-semibold transition active:scale-95",
+                "flex flex-1 flex-col items-center gap-0.5 rounded-full px-1 py-2 text-[10px] font-semibold transition active:scale-95",
                 active
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
               <Icon className="size-5" />
-              <span>{label}</span>
+              <span className="whitespace-nowrap">{label}</span>
             </Link>
           );
         })}
@@ -87,7 +86,7 @@ export function BottomNav({
         <Sheet>
           <SheetTrigger
             className={cn(
-              "flex flex-col items-center gap-0.5 rounded-full px-4 py-2 text-[10px] font-semibold transition-colors",
+              "flex flex-1 flex-col items-center gap-0.5 rounded-full px-1 py-2 text-[10px] font-semibold transition-colors",
               moreActive
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground",

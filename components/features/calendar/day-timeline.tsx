@@ -39,35 +39,36 @@ export function TaskRow({
       type="button"
       onClick={onTap}
       className={cn(
-        "flex w-full items-center gap-3 rounded-2xl border border-l-[5px] bg-card p-3 text-left shadow-soft",
-        tag?.block ?? "border-l-primary",
-        settled && "opacity-60",
+        "group flex w-full items-center gap-3 rounded-2xl border bg-card p-2.5 pr-3 text-left shadow-soft transition active:scale-[0.99]",
+        settled && "opacity-55",
       )}
     >
+      {/* Clean vertical accent (no more curved border) */}
       <span
         className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-full",
+          "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
           tag?.tint ?? "bg-primary/10",
         )}
       >
         <span className={cn("size-2.5 rounded-full", tag?.dot ?? "bg-primary")} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className={cn("truncate text-sm font-bold", settled && "line-through")}>
+        <p className={cn("truncate text-sm font-semibold leading-snug", settled && "line-through")}>
           {task.title}
         </p>
-        <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+        <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
           {timeText}
           {task.remind ? <Bell className="size-3" /> : null}
           {task.recurrence !== "none" ? <Repeat className="size-3" /> : null}
         </p>
       </div>
       {badge ? (
-        <span className={cn("flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold", badge.cls)}>
+        <span className={cn("flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold", badge.cls)}>
           <badge.Icon className="size-3" /> {badge.label}
         </span>
-      ) : null}
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+      ) : (
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground/60 transition group-active:translate-x-0.5" />
+      )}
     </button>
   );
 }

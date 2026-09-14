@@ -61,8 +61,8 @@ export function BottomNav({
   const moreActive = moreLinks.some((l) => isActive(pathname, l.href));
 
   return (
-    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-      <div className="pointer-events-auto flex w-full max-w-md items-stretch gap-0.5 rounded-full border border-black/5 bg-card/95 p-1.5 shadow-float backdrop-blur">
+    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] [backface-visibility:hidden] [transform:translateZ(0)]">
+      <div className="pointer-events-auto flex w-full max-w-md items-stretch gap-0.5 rounded-full border border-black/5 bg-card p-1.5 shadow-float">
         {tabs.map(({ href, label, icon: Icon }) => {
           const active = isActive(pathname, href);
           return (

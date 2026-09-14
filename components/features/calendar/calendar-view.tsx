@@ -8,9 +8,9 @@ import { createClient } from "@/lib/supabase/client";
 import {
   addDays,
   dayOfWeekIST,
-  formatDisplayDate,
   todayIST,
   weekDatesIST,
+  weekdayLabel,
 } from "@/lib/utils/date";
 import { occursOn, tasksOnDate } from "@/lib/calendar";
 import type { CalendarTask } from "@/lib/types/database.types";
@@ -298,28 +298,51 @@ function WeekAgenda({
     <div className="space-y-5">
       {days.map((d) => {
         const items = tasksOnDate(tasks, d);
+        const isToday = d === today;
         return (
           <div key={d} className="space-y-2">
             <button
               type="button"
               onClick={() => onDayTap(d)}
-              className="flex w-full items-center justify-between px-1"
+              className="flex w-full items-center gap-3 px-0.5"
             >
-              <span className={cn("text-base font-bold", d === today && "text-primary")}>
-                {formatDisplayDate(d)}
+              <span
+                className={cn(
+                  "flex size-11 shrink-0 flex-col items-center justify-center rounded-2xl border transition",
+                  isToday
+                    ? "border-transparent bg-primary text-primary-foreground shadow-soft"
+                    : "bg-card text-foreground",
+                )}
+              >
+                <span className="text-[9px] font-bold uppercase leading-none opacity-70">
+                  {weekdayLabel(d, true)}
+                </span>
+                <span className="text-base font-bold leading-tight tabular-nums">
+                  {Number(d.slice(8))}
+                </span>
               </span>
-              <span className="text-xs font-medium text-muted-foreground">
+              <span className="flex-1 text-left text-[15px] font-bold tracking-tight">
+                {weekdayLabel(d)}
+              </span>
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                  items.length
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground",
+                )}
+              >
                 {items.length ? `${items.length} task${items.length > 1 ? "s" : ""}` : "Free"}
               </span>
             </button>
             {items.length ? (
-              <div className="space-y-2">
+              <div className="space-y-2 pl-[3.25rem]">
                 {items.map((t) => (
                   <TaskRow key={t.id} task={t} onTap={() => onTaskTap(t)} />
                 ))}
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed px-3 py-3 text-center text-xs text-muted-foreground">
+              <div className="ml-[3.25rem] rounded-2xl border border-dashed px-3 py-2.5 text-center text-xs text-muted-foreground">
                 Nothing planned
               </div>
             )}

@@ -54,9 +54,9 @@ export function NotificationBell() {
         type="button"
         aria-label="Notifications"
         onClick={() => setOpen(true)}
-        className="relative flex size-10 items-center justify-center rounded-full bg-muted"
+        className="relative flex size-9 items-center justify-center rounded-full bg-muted transition-colors hover:bg-accent"
       >
-        <Bell className="size-5" />
+        <Bell className="size-[18px]" />
         {unread > 0 ? (
           <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[10px] font-bold text-white">
             {unread}

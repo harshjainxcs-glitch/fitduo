@@ -131,7 +131,7 @@ export function TodayHero({
           className="relative flex flex-col items-center"
           aria-label="Show score breakdown"
         >
-          <span className="text-[4rem] font-bold leading-none tracking-tight tabular-nums text-primary">
+          <span className="font-heading text-[4.25rem] font-extrabold leading-none tracking-tight text-primary">
             {d.score.total}
           </span>
           <span className="mt-2 text-xs font-medium text-muted-foreground">

@@ -48,26 +48,26 @@ export default async function AppLayout({
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col">
-      <header className="flex items-center justify-between px-5 pb-3 pt-7">
-        <div>
-          <p className="text-xs font-medium text-muted-foreground">
+      <header className="space-y-3 px-5 pb-2 pt-[max(1.25rem,env(safe-area-inset-top))]">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {formatDisplayDate()}
           </p>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {greeting()}
-            {firstName ? `, ${firstName}` : ""} 👋
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 rounded-full bg-accent px-3 py-1.5 text-sm font-extrabold text-accent-foreground">
-            <Sparkles className="size-3.5" />
-            {points}
-          </span>
-          <NotificationBell />
-          <div className="flex size-10 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
-            {initials}
+          <div className="flex items-center gap-2">
+            <span className="nums flex h-9 items-center gap-1 rounded-full bg-accent px-3 text-sm font-bold text-accent-foreground">
+              <Sparkles className="size-3.5" />
+              {points}
+            </span>
+            <NotificationBell />
+            <div className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+              {initials}
+            </div>
           </div>
         </div>
+        <h1 className="text-[1.7rem] font-bold leading-[1.1] tracking-tight">
+          {greeting()}
+          {firstName ? `, ${firstName}` : ""} <span className="inline-block">👋</span>
+        </h1>
       </header>
 
       <PushManager />
